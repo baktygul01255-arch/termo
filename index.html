@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Основы термодинамики</title>
+<script id="glyph-fix">
+/* glyph-fix: на интерактивных досках без нужных шрифтов символы ⁰¹²…⁻, ₀₁₂…, ∛ показываются квадратиками.
+   Заменяем их обычной разметкой <sup>/<sub> (в SVG — tspan со сдвигом, на canvas — рисуем уменьшенным шрифтом). */
+(function(){
+  const SUP='⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺⁼⁽⁾ⁿⁱˣʸʳˢᐟ',SUPV='0123456789−+=()nixyrs/';
+  const SUB='₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓ',SUBV='0123456789+−=()aeox';
+  const RX=/([⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺⁼⁽⁾ⁿⁱˣʸʳˢᐟ]+)|([₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓ]+)|([∛∜])/g;
+  const TEST=/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺⁼⁽⁾ⁿⁱˣʸʳˢᐟ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓ∛∜]/;
+  const conv=(s,A,B)=>s.split('').map(c=>{const i=A.indexOf(c);return i<0?c:B[i];}).join('');
+  const plain=s=>conv(conv(s,SUP,SUPV),SUB,SUBV).replace(/∛/g,'3√').replace(/∜/g,'4√');
+  function segs(s){const r=[];let last=0;s.replace(RX,(m,a,b,c,off)=>{if(off>last)r.push({t:s.slice(last,off),k:''});
+      if(a)r.push({t:conv(a,SUP,SUPV),k:'sup'});else if(b)r.push({t:conv(b,SUB,SUBV),k:'sub'});else{r.push({t:c==='∛'?'3':'4',k:'sup'});r.push({t:'√',k:''});}
+      last=off+m.length;return m;});if(last<s.length)r.push({t:s.slice(last),k:''});return r;}
+  const SVGNS='http://www.w3.org/2000/svg',SKIP={SCRIPT:1,STYLE:1,TEXTAREA:1,OPTION:1,TITLE:1,title:1,NOSCRIPT:1};
+  function fixText(t){const s=t.nodeValue;if(!s||!TEST.test(s))return;const p=t.parentNode;if(!p||SKIP[p.nodeName])return;
+    const svg=p.namespaceURI===SVGNS;
+    if(!svg&&(p.nodeName==='SUP'||p.nodeName==='SUB')){t.nodeValue=plain(s);return;}
+    const f=document.createDocumentFragment();
+    segs(s).forEach(g=>{if(!g.k){f.appendChild(document.createTextNode(g.t));return;}
+      let e;if(svg){e=document.createElementNS(SVGNS,'tspan');e.setAttribute('baseline-shift',g.k==='sup'?'super':'sub');e.setAttribute('font-size','72%');}
+      else e=document.createElement(g.k);
+      e.textContent=g.t;f.appendChild(e);});
+    p.replaceChild(f,t);}
+  function walk(n){if(!n)return;if(n.nodeType===3){fixText(n);return;}if(n.nodeType!==1||SKIP[n.nodeName])return;
+    const w=document.createTreeWalker(n,NodeFilter.SHOW_TEXT),a=[];let x;while((x=w.nextNode()))if(TEST.test(x.nodeValue))a.push(x);a.forEach(fixText);}
+  new MutationObserver(ms=>{for(const m of ms){if(m.type==='characterData')fixText(m.target);else m.addedNodes.forEach(walk);}})
+    .observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+  document.addEventListener('DOMContentLoaded',()=>walk(document.body));
+  /* canvas */
+  const CP=CanvasRenderingContext2D.prototype,oF=CP.fillText,oS=CP.strokeText,oM=CP.measureText;
+  function layout(ctx,s){const f=ctx.font,m=f.match(/(\d+(?:\.\d+)?)px/),fs=m?+m[1]:16,sm=m?f.replace(m[0],(fs*.7).toFixed(1)+'px'):f;
+    const g=segs(s);let tot=0;g.forEach(q=>{ctx.font=q.k?sm:f;q.w=oM.call(ctx,q.t).width;tot+=q.w;});ctx.font=f;return{g,tot,f,sm,fs};}
+  function draw(orig,ctx,s,x,y,mw){s=String(s);if(!TEST.test(s))return mw===undefined?orig.call(ctx,s,x,y):orig.call(ctx,s,x,y,mw);
+    const Lo=layout(ctx,s);const al=ctx.textAlign,rtl=ctx.direction==='rtl';let x0=x;
+    if(al==='center')x0=x-Lo.tot/2;else if(al==='right'||(al==='end'&&!rtl)||(al==='start'&&rtl))x0=x-Lo.tot;
+    ctx.save();ctx.textAlign='left';Lo.g.forEach(q=>{ctx.font=q.k?Lo.sm:Lo.f;orig.call(ctx,q.t,x0,y+(q.k==='sup'?-Lo.fs*.36:q.k==='sub'?Lo.fs*.22:0));x0+=q.w;});ctx.restore();}
+  CP.fillText=function(s,x,y,mw){return draw(oF,this,s,x,y,mw);};
+  CP.strokeText=function(s,x,y,mw){return draw(oS,this,s,x,y,mw);};
+  CP.measureText=function(s){s=String(s);const r=oM.call(this,s);if(!TEST.test(s))return r;const Lo=layout(this,s);
+    return{width:Lo.tot,actualBoundingBoxLeft:r.actualBoundingBoxLeft,actualBoundingBoxRight:Lo.tot,actualBoundingBoxAscent:r.actualBoundingBoxAscent,actualBoundingBoxDescent:r.actualBoundingBoxDescent,fontBoundingBoxAscent:r.fontBoundingBoxAscent,fontBoundingBoxDescent:r.fontBoundingBoxDescent};};
+})();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,500;0,700;1,500&family=PT+Sans:wght@400;700&family=PT+Serif:ital@0;1&family=PT+Mono&display=swap">
+<style>
+[hidden]{display:none!important}
+/* Layout: школьная тетрадь — красная линия полей, вкладки, слева текст учебника, справа рисунок/модель на клетчатой бумаге */
+:root{
+  --paper:#f6f7fb; --surface:#ffffff; --ink:#1c2746; --muted:#5b6582; --line:#d8ddea;
+  --grid:rgba(60,95,170,.09); --accent:#2d4db3; --accent-soft:#e4e9f9; --margin:#d1475a;
+  --ok:#1d8656; --ok-soft:#e1f3ea; --bad:#c13838; --bad-soft:#fbe6e6;
+  --c1:#2d4db3; --c2:#c2410c; --c3:#7c3aed; --c4:#15803d;
+  --f-display:"Alegreya",Georgia,"Times New Roman",serif;
+  --f-body:"PT Sans","Segoe UI",Arial,sans-serif;
+  --f-math:"PT Serif",Georgia,serif;
+  --f-mono:"PT Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#11162a; --surface:#171e36; --ink:#e5e9f4; --muted:#9aa3bf; --line:#2a3352;
+  --grid:rgba(140,170,255,.07); --accent:#93a9ff; --accent-soft:#222c4c; --margin:#ff7c8b;
+  --ok:#4fc68f; --ok-soft:#173528; --bad:#ff7b7b; --bad-soft:#3a1e24;
+  --c1:#6c84e0; --c2:#d9733c; --c3:#9470dc; --c4:#2fa463; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#11162a; --surface:#171e36; --ink:#e5e9f4; --muted:#9aa3bf; --line:#2a3352;
+  --grid:rgba(140,170,255,.07); --accent:#93a9ff; --accent-soft:#222c4c; --margin:#ff7c8b;
+  --ok:#4fc68f; --ok-soft:#173528; --bad:#ff7b7b; --bad-soft:#3a1e24;
+  --c1:#6c84e0; --c2:#d9733c; --c3:#9470dc; --c4:#2fa463; color-scheme:dark}
+:root[data-theme="light"]{color-scheme:light}
+*{box-sizing:border-box}
+html{font-size:137.5%}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:1rem;line-height:1.55;transition:background .2s,color .2s}
+.wrap{max-width:min(78rem,100%);margin:0 auto;padding-inline:16px;padding-block:0 48px}
+header.top{position:relative;padding-block:28px 20px;padding-left:22px;display:flex;flex-wrap:wrap;gap:16px 24px;justify-content:space-between;align-items:flex-start}
+header.top::before{content:"";position:absolute;left:0;top:24px;bottom:16px;width:2px;background:var(--margin)}
+.htext{flex:1 1 520px;min-width:0}
+.ctrls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sw{display:inline-flex;border:1px solid var(--line);border-radius:999px;background:var(--surface);padding:3px;gap:2px}
+.sw button{font:inherit;font-size:.85rem;font-weight:700;letter-spacing:.04em;border:0;background:none;color:var(--muted);border-radius:999px;padding:5px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.sw button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.sw svg{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+.eyebrow{font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(2rem,4.6vw,3rem);line-height:1.08;margin:.25em 0 .2em;text-wrap:balance}
+h1 em{font-style:italic;font-weight:500;color:var(--accent)}
+.lead{max-width:64ch;color:var(--muted);margin:0}
+h2{font-family:var(--f-display);font-size:1.5rem;margin:0;text-wrap:balance}
+h3{font-family:var(--f-display);font-size:1.2rem;margin:0}
+p{margin:0}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin-bottom:22px}
+nav.tabs button{font:inherit;font-weight:700;background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);padding:12px 14px 10px;cursor:pointer;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+nav.tabs button:hover{color:var(--ink)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.m{font-family:var(--f-math);white-space:nowrap}
+.fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;font-size:.82em;line-height:1.12;margin:0 .08em}
+.fr>span:first-child{border-bottom:1px solid currentColor;padding:0 .18em}
+.fr>span:last-child{padding:0 .18em}
+.paper-grid{background-color:var(--surface);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:20px 20px;border:1px solid var(--line);border-radius:10px}
+svg.plot{display:block;width:100%;height:auto}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+.duo.wideR{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr)}
+@media (max-width:980px){.duo,.duo.wideR{grid-template-columns:1fr}}
+.stack{display:flex;flex-direction:column;gap:18px}
+.defn{border:1.5px solid var(--ink);border-radius:14px;padding:10px 14px;line-height:1.6}
+.fblock{display:block;text-align:center;font-family:var(--f-math);font-size:1.18em;margin-top:6px}
+.note{background:var(--accent-soft);border-radius:8px;padding:10px 14px;line-height:1.6}
+.ex{border-left:3px solid var(--margin);padding-left:12px;line-height:1.7}
+.ex .lbl{display:block;margin-bottom:2px}
+ul.clean{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:6px;line-height:1.55}
+.lbl{font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-family:var(--f-math);font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+thead th{color:var(--muted);font-weight:400}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button,.chip{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:5px 13px;cursor:pointer;line-height:1.4}
+.seg button[aria-pressed="true"],.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.chip{font-family:var(--f-math);font-size:.95rem}
+.row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.btn{font:inherit;font-weight:700;background:var(--accent);color:var(--paper);border:0;border-radius:8px;padding:8px 16px;cursor:pointer}
+.btn.ghost{background:none;color:var(--accent);border:1.5px solid var(--accent)}
+.btn.sm{padding:5px 12px;font-size:.9rem}
+select,input.num{font:inherit;font-family:var(--f-math);padding:4px 8px;border:1.5px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);max-width:100%}
+input.num{width:6em}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.sl{display:grid;grid-template-columns:minmax(4em,auto) 1fr 5.5em;gap:10px;align-items:center}
+.sl .vl{font-family:var(--f-math);text-align:right}
+.big{font-family:var(--f-math);font-size:1.35rem;line-height:1.7}
+.eq{font-family:var(--f-math);font-size:1.6rem;line-height:1.6}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;counter-reset:st}
+.steps li{display:grid;grid-template-columns:2em 1fr;gap:10px;align-items:start;counter-increment:st}
+.steps li::before{content:counter(st);font-family:var(--f-mono);font-size:.85rem;color:var(--paper);background:var(--accent);border-radius:50%;width:1.7em;height:1.7em;display:grid;place-items:center;margin-top:.2em}
+.steps .why{color:var(--muted);font-size:.92rem;display:block}
+.steps .mx{font-family:var(--f-math);font-size:1.2rem;line-height:1.9;overflow-x:auto;display:block}
+.sMode{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.9rem;margin:6px 0 12px;cursor:pointer}
+.sMode input{width:1.2em;height:1.2em;accent-color:var(--accent)}
+.work{border:2px dashed var(--line);border-radius:12px;min-height:220px;padding:12px 16px;color:var(--muted);font-size:.95rem;margin-bottom:14px}
+#sCheck .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 6px}
+#sCheck .fb{font-weight:700;margin:6px 0 12px}
+#sCheck .fb.ok{color:var(--ok)}#sCheck .fb.bad{color:var(--bad)}
+#sCtl .btn[disabled]{opacity:.4;cursor:default}
+@media (max-width:700px){#sCheck .opts{grid-template-columns:1fr}}
+.answer{border:2px solid var(--ok);background:var(--ok-soft);border-radius:10px;padding:10px 14px;font-family:var(--f-math);font-size:1.3rem;line-height:1.8}
+.answer.none{border-color:var(--bad);background:var(--bad-soft)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.9rem;color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:-2px;margin-right:6px}
+.qwrap{max-width:880px}
+.stat{font-family:var(--f-mono);font-size:.9rem;color:var(--muted)}
+.stat b{color:var(--ink);font-weight:400}
+.qcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:16px}
+.qcat{font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.qtext{font-size:1.2rem;line-height:1.6}
+.qtext .m{font-size:1.12em}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px}
+.opt{font:inherit;font-family:var(--f-math);font-size:1.08rem;text-align:left;padding:12px 14px;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);cursor:pointer;display:flex;gap:10px;align-items:center;min-height:2.6em;line-height:1.6}
+.opt .k{font-family:var(--f-mono);font-size:.8rem;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 5px;flex:none}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt:disabled{cursor:default}
+.opt.right{border-color:var(--ok);background:var(--ok-soft)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.expl{border-radius:8px;padding:12px 14px;font-size:1rem;line-height:1.8}
+.expl.ok{background:var(--ok-soft)} .expl.no{background:var(--bad-soft)}
+.expl b{display:block;margin-bottom:2px}
+.progress{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.progress > i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.score{font-family:var(--f-display);font-size:3rem;line-height:1}
+.review{display:flex;flex-direction:column;gap:12px}
+.review > div{border-left:3px solid var(--bad);padding:4px 0 4px 12px;line-height:1.7;display:flex;flex-direction:column;gap:6px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<style>
+.work{min-height:max(560px,62vh)!important;font-size:.85rem!important;border:2px dashed var(--line)}
+
+.sim{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:980px){.sim{grid-template-columns:1fr}}
+canvas.vessel{display:block;width:100%;height:auto;border-radius:10px}
+.readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5em,1fr));gap:8px}
+.readout>div{border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--paper)}
+.readout .k{display:block;font-size:.8rem;color:var(--muted);font-weight:700}
+.readout .v{font-family:var(--f-math);font-size:1.25rem}
+.status{border-radius:10px;padding:10px 14px;font-weight:700;line-height:1.5}
+.status.sat{background:var(--accent-soft);color:var(--accent)}
+.status.uns{background:var(--ok-soft);color:var(--ok)}
+.status.cond{background:var(--bad-soft);color:var(--bad)}
+.flux{display:grid;grid-template-columns:auto 1fr 4.5em;gap:6px 10px;align-items:center;font-size:.9rem}
+.flux .bar{height:14px;border-radius:7px;background:var(--line);overflow:hidden}
+.flux .bar i{display:block;height:100%;border-radius:7px;transition:width .15s}
+.obs{counter-reset:o;list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+.obs li{counter-increment:o;display:grid;grid-template-columns:1.8em 1fr;gap:8px;line-height:1.5}
+.obs li::before{content:counter(o);font-family:var(--f-mono);font-size:.8rem;background:var(--accent-soft);color:var(--accent);border-radius:50%;width:1.6em;height:1.6em;display:grid;place-items:center;margin-top:.1em}
+.cmp td,.cmp th{white-space:normal;text-align:left;font-family:var(--f-body);vertical-align:top;line-height:1.45}
+.cmp th:first-child{color:var(--muted)}
+.pin{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px}
+.pin input{width:8em;font-size:1.2rem}
+.fb.ok{color:var(--ok);font-weight:700}.fb.bad{color:var(--bad);font-weight:700}
+.prob{font-size:1.15rem;line-height:1.7}
+.tcard{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:980px){.tcard{grid-template-columns:1fr}}
+.cap{font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:4px}
+
+.tcard{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:980px){.tcard{grid-template-columns:1fr}}
+canvas.cv{display:block;width:100%;height:auto;border-radius:10px}
+.stage{border-radius:10px;padding:10px 14px;font-weight:700;line-height:1.5;background:var(--accent-soft);color:var(--accent)}
+.stage.boil{background:var(--bad-soft);color:var(--bad)}
+</style>
+
+
+<style>
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13em),1fr));gap:10px}
+.fgrid>div{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--paper);display:flex;flex-direction:column;align-items:center;gap:2px}
+.fcap{font-size:.82rem;color:var(--muted);text-align:center}
+.duo2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sticky{position:sticky;top:64px}
+@media (max-width:980px){.sticky{position:static}}
+.cap,.lbl{text-transform:none!important;letter-spacing:.02em!important}
+.cmp td{white-space:normal}
+canvas.cv{display:block;width:100%;height:auto;border-radius:10px;background:var(--paper)}
+.tip{background:var(--accent-soft);border-radius:10px;padding:10px 14px;line-height:1.55}
+.chip{font-family:var(--f-math)}
+.tcard>*{min-width:0}
+.ex .m,.fblock{white-space:normal}
+.fgrid .fblock{font-size:1.05em}
+</style>
+
+<style>
+.law{border-color:var(--accent);background:var(--accent-soft)}
+.muted{color:var(--muted)}
+.g9{display:grid;grid-template-columns:auto repeat(3,minmax(0,1fr));gap:6px;align-items:center}
+.g9 .gh{text-align:center;font-family:var(--f-math);font-weight:700;font-style:italic}
+.g9 .gr{font-size:.8rem;color:var(--muted);line-height:1.3}
+.g9 .gr b{color:var(--ink);font-family:var(--f-math)}
+#lProc button{line-height:1.25}#lProc small{font-family:var(--f-math);opacity:.8}
+.diag3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}@media (max-width:900px){.diag3{grid-template-columns:1fr}}
+.opt .paper-grid svg{width:100%}
+</style>
+<style>
+.opt .m{white-space:normal}
+.vwork{min-height:320px;font-size:.85rem;margin:0}
+.mtag{display:inline-block;border-radius:999px;padding:3px 12px;font-weight:700;font-size:.85rem;background:var(--accent-soft);color:var(--accent)}
+.task .opts{grid-template-columns:1fr 1fr}
+@media (max-width:800px){.task .opts{grid-template-columns:1fr}}
+.fbt{font-weight:700;border-radius:999px;padding:2px 12px;font-size:.85rem}
+.fbt.ok{background:var(--ok-soft);color:var(--ok)}.fbt.bad{background:var(--bad-soft);color:var(--bad)}
+.task .qtext{font-size:1.2rem}
+.tq{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,440px);gap:18px;align-items:start}
+@media (max-width:900px){.tq{grid-template-columns:1fr}}
+.tfig svg{display:block;width:100%;height:auto}
+.mctl{display:flex;flex-direction:column;gap:10px}
+#tWorld small{opacity:.75}
+.bad-a{color:var(--bad)}
+.sl{grid-template-columns:minmax(2.2em,auto) 1fr 6.5em}
+.qtext .paper-grid svg{display:block;width:100%;height:auto}
+</style>
+<style>
+.bx{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.vec{display:inline-block;position:relative;font-style:normal}.vec::before{content:"\2192";position:absolute;left:0;right:0;top:-.62em;text-align:center;font-size:.72em;line-height:1}
+.qtext .paper-grid svg{display:block;width:100%;height:auto}
+.icew{display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1fr);gap:10px;align-items:start}@media (max-width:900px){.icew{grid-template-columns:1fr}}
+.bars2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media (max-width:700px){.icew{display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1fr);gap:10px;align-items:start}@media (max-width:900px){.icew{grid-template-columns:1fr}}
+.bars2{grid-template-columns:1fr}}
+</style>
+<style>
+header.top{flex-wrap:nowrap;align-items:flex-start}
+header.top .htext{flex:1 1 auto}
+header.top .ctrls{flex:0 0 auto;max-width:300px;justify-content:flex-end}
+h1{font-size:clamp(1.7rem,3.2vw,2.5rem);text-wrap:pretty}
+.lead{max-width:none}
+@media (max-width:900px){header.top{flex-wrap:wrap}header.top .ctrls{max-width:none;justify-content:flex-start}}
+</style>
+<div class="wrap">
+  <header class="top">
+    <div class="htext">
+      <div class="eyebrow" data-i="eyebrow"></div>
+      <h1 data-i="h1"></h1>
+      <p class="lead" data-i="lead"></p>
+    </div>
+    <div class="ctrls">
+      <div class="sw" id="langSw" role="group" aria-label="Тіл / Язык"><button data-lang="ru">РУС</button><button data-lang="kz">ҚАЗ</button></div>
+      <div class="sw" id="sizeSw" role="group" aria-label="Размер шрифта"><button data-sz="16">A</button><button data-sz="22">A+</button><button data-sz="28">A++</button></div>
+      <div class="sw" id="themeSw" role="group" aria-label="Тема">
+        <button data-th="light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span data-i="light"></span></button>
+        <button data-th="dark"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span data-i="dark"></span></button>
+      </div>
+    </div>
+  </header>
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="t-theory" data-tab="theory" data-i="tTheory"></button>
+    <button role="tab" id="t-cyc" data-tab="cyc" data-i="tCyc"></button>
+    <button role="tab" id="t-ice" data-tab="ice" data-i="tIce"></button>
+    <button role="tab" id="t-prob" data-tab="prob" data-i="tProb"></button>
+    <button role="tab" id="t-train" data-tab="train" data-i="tTrain"></button>
+    <button role="tab" id="t-test" data-tab="test" data-i="tTest"></button>
+  </nav>
+  <main>
+  <div id="p-theory" class="pane"><div class="stack" id="theoryBox"></div></div>
+  <div id="p-cyc" class="pane" hidden><div class="duo wideR">
+    <div class="stack"><div class="card mctl"><div class="seg" id="yType"></div><div class="seg" id="yGas"></div><div id="yCtl" class="mctl"></div><div class="row" id="yBtns"></div><div class="tip" id="yTip"></div></div>
+      <div class="card"><span class="lbl" data-i="readL"></span><div class="readout" id="yRead"></div></div></div>
+    <div class="stack"><div class="card"><div class="paper-grid"><svg id="ySvg" class="plot" role="img" aria-label="p-V"></svg></div><div id="yTab"></div></div></div>
+  </div></div>
+  <div id="p-ice" class="pane" hidden><div class="duo wideR">
+    <div class="stack"><div class="card mctl"><div id="iCtl" class="mctl"></div><div class="row" id="iBtns"></div><div class="status" id="iStat"></div><div class="tip" id="iTip"></div></div>
+      <div class="card"><span class="lbl" data-i="readL"></span><div class="readout" id="iRead"></div></div></div>
+    <div class="stack"><div class="card"><div class="icew"><div class="paper-grid"><svg id="iSvg" class="plot" role="img" aria-label="engine"></svg></div><div class="paper-grid"><svg id="iPV" class="plot" role="img" aria-label="p-V"></svg></div></div></div></div>
+  </div></div>
+  <div id="p-prob" class="pane" hidden><div class="duo wideR">
+    <div class="stack">
+      <div class="card"><span class="lbl" data-i="pTypeL"></span><div class="seg" id="prCat"></div><div class="row"><button class="btn" id="prNew" data-i="prNew"></button></div><label class="sMode"><input type="checkbox" class="teach"> <span data-i="sAllL"></span></label></div>
+      <div class="card"><span class="lbl" data-i="figL"></span><div class="paper-grid"><svg id="prFig" class="plot" role="img" aria-label="figure"></svg></div><p class="muted" id="prFigN" style="font-size:.9rem"></p></div>
+      <div class="card"><span class="lbl" data-i="constL"></span><div id="prConst" style="line-height:1.8"></div></div>
+    </div>
+    <div class="stack"><div class="card"><span class="lbl" id="prCatL"></span><div class="prob" id="prText"></div><div id="prSolve"></div></div></div>
+  </div></div>
+  <div id="p-train" class="pane" hidden>
+    <div class="qwrap">
+      <div class="row" style="margin-bottom:14px"><div class="seg" id="trCat"></div></div>
+      <div class="row" style="margin-bottom:14px">
+        <span class="stat"><span data-i="sDone"></span>: <b id="sDone">0</b></span>
+        <span class="stat"><span data-i="sOk"></span>: <b id="sOk">0</b></span>
+        <span class="stat"><span data-i="sStreak"></span>: <b id="sStreak">0</b></span>
+        <span class="stat"><span data-i="sBest"></span>: <b id="sBest">0</b></span>
+      </div>
+      <div id="trBox"></div>
+    </div>
+  </div>
+  <div id="p-test" class="pane" hidden><div class="qwrap" id="testBox"></div></div>
+  </main>
+</div>
+<script>
+/* ================= база ================= */
+let LANG='ru';
+try{const s=localStorage.getItem('thd-lang');if(s==='kz'||s==='ru')LANG=s;}catch(e){}
+const L=(ru,kz)=>LANG==='kz'?kz:ru;
+const $=s=>document.querySelector(s);
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+let rnd=Math.random;
+const ri=(a,b)=>a+Math.floor(rnd()*(b-a+1));
+const pick=a=>a[Math.floor(rnd()*a.length)];
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+const newSeed=()=>Math.floor(Math.random()*2**31);
+function withSeed(seed,fn){const p=rnd;rnd=mulberry(seed);try{return fn();}finally{rnd=p;}}
+const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+const sup=n=>String(n).split('').map(c=>SUP[c]||c).join('');
+function trimN(x,d){let s=x.toFixed(d);if(s.includes('.'))s=s.replace(/0+$/,'').replace(/\.$/,'');return s;}
+function fmt(x,sig=3){if(!isFinite(x))return'—';if(x===0)return'0';const a=Math.abs(x);
+  if(a>=1e5||a<1e-3){let e=Math.floor(Math.log10(a));let m=x/10**e;if(Math.abs(Math.round(m*100)/100)>=10){m/=10;e++;}return (trimN(m,sig-1).replace('.',',')+'·10'+sup(e)).replace('-','−');}
+  const d=Math.max(0,sig-1-Math.floor(Math.log10(a)));return trimN(x,d).replace('.',',').replace('-','−');}
+const frac=(n,d)=>`<span class="fr"><span>${n}</span><span>${d}</span></span>`;
+const M_=s=>`<span class="m">${s}</span>`;
+const strip=h=>h.replace(/<[^>]+>/g,'|');
+const NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function txt(parent,s,x,y,a){const e=el('text',Object.assign({x,y,'font-size':19,fill:'var(--ink)','font-family':'PT Serif, Georgia, serif'},a||{}),parent);e.textContent=s;return e;}
+function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+
+/* ================= графики ================= */
+function mkPlot(svg,o){const W=o.W,H=o.H,pl=o.pl||64,pr=o.pr||20,pt=o.pt||20,pb=o.pb||46;
+  const X=x=>pl+(x-o.x0)/(o.x1-o.x0)*(W-pl-pr), Y=y=>H-pb-(y-o.y0)/(o.y1-o.y0)*(H-pt-pb);return{X,Y,W,H,pl,pr,pt,pb};}
+function axes(svg,P,o){const{X,Y}=P;
+  o.xt.forEach(v=>{el('line',{x1:X(v),x2:X(v),y1:Y(o.y0),y2:Y(o.y1),stroke:'var(--line)','stroke-width':1},svg);txt(svg,o.xf?o.xf(v):fmt(v),X(v),Y(o.y0)+24,{'text-anchor':'middle','font-size':16,fill:'var(--muted)'});});
+  o.yt.forEach(v=>{el('line',{x1:X(o.x0),x2:X(o.x1),y1:Y(v),y2:Y(v),stroke:'var(--line)','stroke-width':1},svg);txt(svg,o.yf?o.yf(v):fmt(v),X(o.x0)-8,Y(v)+5,{'text-anchor':'end','font-size':16,fill:'var(--muted)'});});
+  el('line',{x1:X(o.x0),x2:X(o.x1)+8,y1:Y(o.y0),y2:Y(o.y0),stroke:'var(--muted)','stroke-width':2},svg);
+  el('line',{x1:X(o.x0),x2:X(o.x0),y1:Y(o.y0),y2:Y(o.y1)-8,stroke:'var(--muted)','stroke-width':2},svg);
+  txt(svg,o.xl,X(o.x1),Y(o.y0)-10,{'text-anchor':'end','font-size':18,'font-style':'italic',fill:'var(--muted)'});
+  txt(svg,o.yl,X(o.x0)+8,Y(o.y1)+6,{'font-size':18,'font-style':'italic',fill:'var(--muted)'});}
+function path(svg,pts,a){if(!pts.length)return;el('path',Object.assign({d:'M'+pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join('L'),fill:'none','stroke-width':3,'stroke-linejoin':'round'},a),svg);}
+
+function svgStr(o,draw){const s=document.createElementNS(NS,'svg');s.setAttribute('viewBox',`0 0 ${o.W} ${o.H}`);s.setAttribute('class','plot');draw(s);return s.outerHTML;}
+const nice=(mx,n=6)=>{const st=[0.1,0.2,0.25,0.5,1,2,5,10,20,25,50,100,200,250,500,1000];return st.find(s=>mx/s<=n)||1000;};
+const ticks=(a,b,s)=>{const r=[];for(let v=a;v<=b+1e-9;v+=s)r.push(Math.round(v*1e6)/1e6);return r;};
+const close=(x,y,tol)=>Math.abs(x-y)<=Math.max(Math.abs(y)*tol,1e-9);
+const parseNum=s=>{s=String(s).replace(/\s/g,'').replace(',','.').replace('−','-');if(s===''||!isFinite(+s))return null;return +s;};
+
+
+
+const neg=s=>String(s).replace(/^-/,'−');
+function arr(svg,x1,y1,x2,y2,c,w,dash){const dx=x2-x1,dy=y2-y1,l=Math.hypot(dx,dy);if(l<3)return;w=w||3;const ux=dx/l,uy=dy/l,hs=Math.min(15,l*.45);
+  const a={x1,y1,x2:x2-ux*hs*.8,y2:y2-uy*hs*.8,stroke:c,'stroke-width':w,'stroke-linecap':'round'};if(dash)a['stroke-dasharray']=dash;el('line',a,svg);
+  el('path',{d:`M${x2.toFixed(1)} ${y2.toFixed(1)}L${(x2-ux*hs-uy*hs*.42).toFixed(1)} ${(y2-uy*hs+ux*hs*.42).toFixed(1)}L${(x2-ux*hs+uy*hs*.42).toFixed(1)} ${(y2-uy*hs-ux*hs*.42).toFixed(1)}Z`,fill:c},svg);}
+/* универсальный график y(t) */
+function kg(svg,o){const W=o.W||760,H=o.H||250;svg.innerHTML='';svg.setAttribute('viewBox',`0 0 ${W} ${H}`);const T=o.T;
+  let lo=o.lo,hi=o.hi;if(lo==null){lo=0;hi=0;o.series.forEach(s=>{for(let i=0;i<=200;i++){const y=s.f(T*i/200);if(isFinite(y)){lo=Math.min(lo,y);hi=Math.max(hi,y);}}});const pad=Math.max((hi-lo)*.12,.5);hi+=pad;if(lo<0)lo-=pad;}
+  if(hi-lo<1e-9)hi=lo+1;
+  const pl=o.pl||64,pr=34,pt=24,pb=30;const X=t=>pl+t/(T*1.04)*(W-pl-pr),Y=y=>pt+(hi-y)/(hi-lo)*(H-pt-pb);
+  const sy=o.sy||nice(hi-lo,o.ny||5),st=o.st||nice(T,10);
+  for(let v=Math.ceil(lo/sy)*sy;v<=hi+1e-9;v+=sy){const vv=Math.round(v*1e6)/1e6;el('line',{x1:X(0),x2:X(T*1.04),y1:Y(vv),y2:Y(vv),stroke:'var(--line)','stroke-width':1},svg);if(Math.abs(vv)>1e-9)txt(svg,fmt(vv),X(0)-8,Y(vv)+5,{'text-anchor':'end','font-size':15,fill:'var(--muted)'});}
+  const y0=lo<=0&&hi>=0?Y(0):Y(lo);
+  for(let t=st;t<=T*1.001;t+=st){const tt=Math.round(t*1e6)/1e6;el('line',{x1:X(tt),x2:X(tt),y1:Y(hi),y2:Y(lo),stroke:'var(--line)','stroke-width':1},svg);txt(svg,fmt(tt),X(tt),Math.min(H-6,y0+19),{'text-anchor':'middle','font-size':15,fill:'var(--muted)'});}
+  txt(svg,'0',X(0)-8,y0+5,{'text-anchor':'end','font-size':15,fill:'var(--muted)'});
+  if(o.area){const a=o.area,pts=[];const N=80;for(let i=0;i<=N;i++){const t=a.t0+(a.t1-a.t0)*i/N;pts.push(X(t).toFixed(1)+' '+Y(a.f(t)).toFixed(1));}
+    el('path',{d:`M${X(a.t0)} ${Y(0)}L${pts.join('L')}L${X(a.t1)} ${Y(0)}Z`,fill:a.col||'var(--c1)','fill-opacity':.2,stroke:'none'},svg);}
+  arr(svg,X(0),y0,W-8,y0,'var(--muted)',2);arr(svg,X(0),H-4,X(0),6,'var(--muted)',2);
+  txt(svg,o.xl||L('t, с','t, с'),W-10,y0-9,{'text-anchor':'end','font-size':16,'font-style':'italic',fill:'var(--muted)'});txt(svg,o.yl||'',X(0)+10,18,{'font-size':16,'font-style':'italic',fill:'var(--muted)'});
+  o.series.forEach(s=>{const pts=[];const N=240,t1=s.t1!=null?s.t1:T,t0=s.t0||0;for(let i=0;i<=N;i++){const t=t0+(t1-t0)*i/N;pts.push([X(t),Y(s.f(t))]);}path(svg,pts,{stroke:s.col||'var(--c1)','stroke-width':s.w||3.5,'stroke-dasharray':s.dash||'none'});
+    if(s.lab){const t=s.lt!=null?s.lt:T*.92;txt(svg,s.lab,X(t),Y(s.f(t))-10,{'text-anchor':'middle','font-size':17,fill:s.col||'var(--c1)','font-weight':700});}});
+  (o.marks||[]).forEach(m=>{if(!m.nodot)el('circle',{cx:X(m.t),cy:Y(m.y),r:6,fill:m.col||'var(--c2)'},svg);if(m.guide){el('line',{x1:X(m.t),x2:X(m.t),y1:Y(m.y),y2:y0,stroke:m.col||'var(--c2)','stroke-dasharray':'4 4'},svg);el('line',{x1:X(0),x2:X(m.t),y1:Y(m.y),y2:Y(m.y),stroke:m.col||'var(--c2)','stroke-dasharray':'4 4'},svg);}
+    if(m.lab)txt(svg,m.lab,X(m.t)+(m.dx||8),Y(m.y)+(m.dy||-10),{'font-size':16,fill:m.col||'var(--c2)','font-weight':700,'text-anchor':m.anchor||'start'});});
+  if(o.cur!=null){el('line',{x1:X(o.cur),x2:X(o.cur),y1:Y(hi),y2:Y(lo),stroke:'var(--ink)','stroke-width':1.5,'stroke-dasharray':'6 5'},svg);o.series.forEach(s=>{if(s.nocur)return;el('circle',{cx:X(o.cur),cy:Y(s.f(o.cur)),r:7,fill:s.col||'var(--c1)',stroke:'var(--surface)','stroke-width':2},svg);});}
+  return{X,Y,lo,hi};}
+/* мини-график для вариантов ответа */
+function miniK(s,kind,yl){const W=240,H=170,ox=30,mid=kind.mid?85:140;arr(s,ox,H-6,ox,10,'var(--muted)',2);arr(s,ox-4,mid,W-8,mid,'var(--muted)',2);txt(s,'t',W-12,mid-8,{'text-anchor':'end','font-size':16,'font-style':'italic',fill:'var(--muted)'});if(yl)txt(s,yl,ox+8,22,{'font-size':16,'font-style':'italic',fill:'var(--muted)'});
+  const pts=[];for(let t=0;t<=1.0001;t+=.02)pts.push([ox+t*185,mid-kind.f(t)*(kind.mid?65:115)]);path(s,pts,{stroke:'var(--c1)','stroke-width':3.5});}
+const MK={lin0:{f:t=>.85*t},lin:{f:t=>.25+.6*t},const:{f:t=>.55},zero:{f:t=>0},parU:{f:t=>.9*t*t},parD:{f:t=>.9*(2*t-t*t)},down:{f:t=>.85-.75*t},
+  cpos:{f:t=>.55,mid:1},cneg:{f:t=>-.55,mid:1},czero:{f:t=>0,mid:1},lmid:{f:t=>-.8+1.6*t,mid:1},ldown:{f:t=>.8-1.6*t,mid:1}};
+
+
+/* ================= единицы и помощники ================= */
+const RG=8.31;const JJ=L('Дж','Дж'),kJ=L('кДж','кДж'),MJ=L('МДж','МДж'),kPa=L('кПа','кПа'),Pa=L('Па','Па'),Lt=L('л','л'),KK='К',kgU=L('кг','кг'),WW=L('Вт','Вт'),kW=L('кВт','кВт'),mol=L('моль','моль'),ss=L('с','с');
+const st=(why,mx)=>({why,mx});
+function parseSci(s){s=String(s).replace(/\s/g,'').replace(/,/g,'.').replace(/[−–]/g,'-');if(s===''||!isFinite(+s))return null;return +s;}
+const cell=(k,v)=>`<div><span class="k">${k}</span><span class="v">${v}</span></div>`;
+function svg0(sv,W,H){sv.innerHTML='';sv.setAttribute('viewBox',`0 0 ${W} ${H}`);}
+const FUEL=()=>[{n:L('бензин','бензин'),q:4.6e7,qh:'4,6·10⁷'},{n:L('дизельное топливо','дизель отыны'),q:4.2e7,qh:'4,2·10⁷'},{n:L('керосин','керосин'),q:4.6e7,qh:'4,6·10⁷'},{n:L('каменный уголь','тас көмір'),q:2.7e7,qh:'2,7·10⁷'},{n:L('природный газ','табиғи газ'),q:4.4e7,qh:'4,4·10⁷'}];
+/* p–V диаграмма: o={W,H,V1,p1 (максимумы), segs:[{pts,col,w,dash,arrow}], fill, labels:[{V,p,t,dx,dy}], dot:[V,p], xl, yl} */
+function pvFig(svg,o){const W=o.W||560,H=o.H||380;svg0(svg,W,H);const P=mkPlot(svg,{x0:0,x1:o.V1,y0:0,y1:o.p1,W,H,pl:o.pl||64,pb:44});const sx=nice(o.V1,7),sy=nice(o.p1,6);
+  axes(svg,P,{x0:0,x1:o.V1,y0:0,y1:o.p1,xt:ticks(sx,o.V1-.001,sx),yt:ticks(sy,o.p1-.001,sy),xl:o.xl||L('V, л','V, л'),yl:o.yl||L('p, кПа','p, кПа'),xf:o.xf,yf:o.yf});const{X,Y}=P;
+  if(o.fill){el('path',{d:'M'+o.fill.map(([v,p])=>X(v).toFixed(1)+' '+Y(p).toFixed(1)).join('L')+'Z',fill:o.fillCol||'var(--c2)','fill-opacity':.18,stroke:'none'},svg);}
+  (o.segs||[]).forEach(s=>{path(svg,s.pts.map(([v,p])=>[X(v),Y(p)]),{stroke:s.col||'var(--c1)','stroke-width':s.w||3.2,'stroke-dasharray':s.dash||'none',opacity:s.op||1});
+    if(s.arrow!==false&&s.pts.length>1){const k=Math.floor(s.pts.length*.55),a=s.pts[Math.max(0,k-1)],b=s.pts[Math.min(s.pts.length-1,k+1)];const x1=X(a[0]),y1=Y(a[1]),x2=X(b[0]),y2=Y(b[1]);const l=Math.hypot(x2-x1,y2-y1)||1;arr(svg,(x1+x2)/2-(x2-x1)/l*10,(y1+y2)/2-(y2-y1)/l*10,(x1+x2)/2+(x2-x1)/l*8,(y1+y2)/2+(y2-y1)/l*8,s.col||'var(--c1)',3);}
+    if(s.lab){const m=s.pts[Math.floor(s.pts.length/2)];txt(svg,s.lab,X(m[0])+(s.ldx||8),Y(m[1])+(s.ldy||-8),{'font-size':14,fill:s.col||'var(--c1)','font-weight':700});}});
+  (o.labels||[]).forEach(l=>{el('circle',{cx:X(l.V),cy:Y(l.p),r:5,fill:'var(--ink)'},svg);txt(svg,l.t,X(l.V)+(l.dx||8),Y(l.p)+(l.dy||-8),{'font-size':16,'font-weight':700});});
+  if(o.dot){el('circle',{cx:X(o.dot[0]),cy:Y(o.dot[1]),r:8,fill:'var(--c2)',stroke:'var(--surface)','stroke-width':2},svg);}
+  if(o.note)txt(svg,o.note,W-12,24,{'text-anchor':'end','font-size':15,'font-weight':700,fill:'var(--c2)'});
+  return P;}
+const lin=(a,b,n)=>{n=n||20;const r=[];for(let i=0;i<=n;i++)r.push([a[0]+(b[0]-a[0])*i/n,a[1]+(b[1]-a[1])*i/n]);return r;};
+const isoT=(Va,Vb,C,n)=>{n=n||40;const r=[];for(let i=0;i<=n;i++){const V=Va+(Vb-Va)*i/n;r.push([V,C/V]);}return r;};
+const adia=(Va,Vb,C,g,n)=>{n=n||40;const r=[];for(let i=0;i<=n;i++){const V=Va+(Vb-Va)*i/n;r.push([V,C/Math.pow(V,g)]);}return r;};
+/* схема теплового двигателя */
+function figEngine(svg,o){o=o||{};svg0(svg,420,400);const box=(y,col,t1,t2)=>{el('rect',{x:110,y,width:200,height:64,rx:10,fill:col,'fill-opacity':.2,stroke:col,'stroke-width':2.4},svg);txt(svg,t1,210,y+28,{'text-anchor':'middle','font-size':17,'font-weight':700});txt(svg,t2,210,y+50,{'text-anchor':'middle','font-size':15,fill:'var(--muted)'});};
+  box(20,'#dc2626',L('Нагреватель','Қыздырғыш'),o.T1||'T₁');box(316,'#2563eb',L('Холодильник','Суытқыш'),o.T2||'T₂');
+  el('circle',{cx:210,cy:200,r:56,fill:'var(--accent-soft)',stroke:'var(--c1)','stroke-width':2.4},svg);txt(svg,L('Рабочее','Жұмыстық'),210,196,{'text-anchor':'middle','font-size':15,'font-weight':700});txt(svg,L('тело','дене'),210,216,{'text-anchor':'middle','font-size':15,'font-weight':700});
+  arr(svg,210,86,210,142,'#dc2626',4);txt(svg,o.Q1||'Q₁',222,120,{'font-size':17,'font-weight':700,fill:'#dc2626','font-style':'italic'});
+  arr(svg,210,258,210,314,'#2563eb',4);txt(svg,o.Q2||'Q₂',222,292,{'font-size':17,'font-weight':700,fill:'#2563eb','font-style':'italic'});
+  arr(svg,268,200,380,200,'var(--c4)',4);txt(svg,o.A||'A = Q₁ − Q₂',300,188,{'font-size':16,'font-weight':700,fill:'var(--c4)','font-style':'italic'});
+  if(o.eta)txt(svg,o.eta,20,200,{'font-size':16,'font-weight':700,fill:'var(--c2)'});}
+/* ДВС: o={th (град, 0..720), eps, W,H} */
+function figICE(svg,o){const W=o.W||360,H=Math.max(460,o.H||460);svg0(svg,W,H);const th=((o.th%720)+720)%720,ph=Math.floor(th/180);const x=(1-Math.cos(th*Math.PI/180))/2;const cx=W/2,top=92,cw=120,clen=180,cl=clen*(1/(o.eps||8));
+  const py=top+cl+(clen-cl)*x;// верх поршня
+  const gasCol=['#86efac','#fde68a','#f87171','#9ca3af'][ph];el('rect',{x:cx-cw/2,y:top,width:cw,height:py-top,fill:gasCol,'fill-opacity':ph===2&&th<400?.9:.55},svg);
+  el('path',{d:`M${cx-cw/2-8} ${top+clen+80}L${cx-cw/2-8} ${top-8}L${cx+cw/2+8} ${top-8}L${cx+cw/2+8} ${top+clen+80}`,fill:'none',stroke:'var(--ink)','stroke-width':4},svg);
+  el('rect',{x:cx-cw/2,y:py,width:cw,height:46,fill:'var(--muted)',stroke:'var(--ink)','stroke-width':2},svg);
+  const crY=top+clen+120,r=44,ang=th*Math.PI/180;const kx=cx+r*Math.sin(ang),ky=crY-r*Math.cos(ang)*-1;
+  el('circle',{cx,cy:crY,r:r+8,fill:'none',stroke:'var(--line)','stroke-width':2},svg);el('line',{x1:cx,y1:py+23,x2:cx+r*Math.sin(ang),y2:crY-r*Math.cos(ang),stroke:'var(--ink)','stroke-width':6,'stroke-linecap':'round'},svg);el('line',{x1:cx,y1:crY,x2:cx+r*Math.sin(ang),y2:crY-r*Math.cos(ang),stroke:'var(--ink)','stroke-width':8,'stroke-linecap':'round'},svg);el('circle',{cx,cy:crY,r:7,fill:'var(--ink)'},svg);
+  const v1o=ph===0,v2o=ph===3;// клапаны
+  el('rect',{x:cx-cw/2+8,y:top-34+(v1o?14:0),width:30,height:8,fill:v1o?'var(--c4)':'var(--muted)'},svg);el('line',{x1:cx-cw/2+23,y1:top-60,x2:cx-cw/2+23,y2:top-34+(v1o?14:0),stroke:'var(--ink)','stroke-width':3},svg);
+  el('rect',{x:cx+cw/2-38,y:top-34+(v2o?14:0),width:30,height:8,fill:v2o?'var(--c2)':'var(--muted)'},svg);el('line',{x1:cx+cw/2-23,y1:top-60,x2:cx+cw/2-23,y2:top-34+(v2o?14:0),stroke:'var(--ink)','stroke-width':3},svg);
+  txt(svg,L('впуск','кіріс'),cx-cw/2+23,top-66,{'text-anchor':'middle','font-size':13,fill:'var(--muted)'});txt(svg,L('выпуск','шығыс'),cx+cw/2-23,top-66,{'text-anchor':'middle','font-size':13,fill:'var(--muted)'});
+  el('path',{d:`M${cx-6} ${top-8}L${cx+6} ${top-8}L${cx+4} ${top+8}L${cx-4} ${top+8}Z`,fill:'var(--ink)'},svg);if(ph===2&&th<390){for(let i=0;i<6;i++){const a=i*Math.PI/3;el('line',{x1:cx,y1:top+10,x2:cx+16*Math.cos(a),y2:top+10+16*Math.sin(a),stroke:'#f59e0b','stroke-width':3},svg);}}
+  txt(svg,L('свеча','білте'),cx,top-20,{'text-anchor':'middle','font-size':12,fill:'var(--muted)'});
+  arr(svg,cx+cw/2+30,top+clen/2+(ph%2?20:-20),cx+cw/2+30,top+clen/2+(ph%2?-20:20),'var(--c1)',3);}
+
+/* ================= интерфейс ================= */
+const UI=()=>({
+  eyebrow:L('Физика · 10 класс · Тема 11. Основы термодинамики','Физика · 10-сынып · 11-тақырып. Термодинамика негіздері'),
+  h1:L('<em>Основы термодинамики.</em> Применение законов термодинамики. Тепловые двигатели','<em>Термодинамика негіздері.</em> Термодинамика заңдарын қолдану. Жылу қозғалтқыштары'),
+  lead:L('Внутренняя энергия, работа газа и количество теплоты, первый закон термодинамики и его применение к изопроцессам, второй закон, тепловые двигатели, КПД и цикл Карно, двигатель внутреннего сгорания — с моделями «Цикл на p–V диаграмме» и «Четырёхтактный двигатель», решателем, тренажёром и тестом.','Ішкі энергия, газдың жұмысы және жылу мөлшері, термодинамиканың бірінші заңы және оны изопроцестерге қолдану, екінші заң, жылу қозғалтқыштары, ПӘК және Карно циклі, іштен жану қозғалтқышы — «p–V диаграммасындағы цикл» және «Төрт тактілі қозғалтқыш» модельдерімен, шешушімен, жаттықтырғышпен және тестпен.'),
+  light:L('Светлая','Ашық'),dark:L('Тёмная','Қараңғы'),
+  tTheory:L('Теория','Теория'),tCyc:L('Модель: цикл на p–V','Модель: p–V циклі'),tIce:L('Модель: ДВС','Модель: ІЖҚ'),tProb:L('Решатель','Шешуші'),tTrain:L('Тренажёр','Жаттықтырғыш'),tTest:L('Тест','Тест'),
+  readL:L('Показания','Көрсеткіштер'),
+  pTypeL:L('Тип задачи','Есеп түрі'),prNew:L('Новая задача','Жаңа есеп'),constL:L('Формулы и постоянные','Формулалар мен тұрақтылар'),figL:L('Рисунок к задаче','Есептің суреті'),
+  sAllL:L('Показывать решение сразу (режим учителя)','Шешімді бірден көрсету (мұғалім режимі)'),
+  sDone:L('Решено','Шешілді'),sOk:L('Верно','Дұрыс'),sStreak:L('Серия','Қатарынан'),sBest:L('Рекорд серии','Ең ұзақ қатар'),
+});
+function applyUI(){const u=UI();document.querySelectorAll('[data-i]').forEach(e=>{const v=u[e.dataset.i];if(v!==undefined)e.innerHTML=v;});
+  document.title=L('Основы термодинамики','Термодинамика негіздері');
+  document.documentElement.lang=LANG==='kz'?'kk':'ru';[...$('#langSw').children].forEach(b=>b.setAttribute('aria-pressed',b.dataset.lang===LANG));}
+const TABS=['theory','cyc','ice','prob','train','test'];
+function showTab(t){TABS.forEach(x=>{$('#p-'+x).hidden=x!==t;$('#t-'+x).setAttribute('aria-selected',x===t);});try{localStorage.setItem('thd-tab',t);}catch(e){}}
+document.querySelector('nav.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)showTab(b.dataset.tab);});
+
+/* ================= ТЕОРИЯ ================= */
+const fig=(id,cap,mw)=>`<figure style="margin:0${mw?';max-width:'+mw+'px;width:100%;margin-inline:auto':''}"><div class="paper-grid"><svg id="${id}" class="plot" role="img" aria-label="${cap.replace(/<[^>]+>/g,'')}"></svg></div><div class="cap">${cap}</div></figure>`;
+const PN=()=>({V:L('изохорный','изохоралық'),p:L('изобарный','изобаралық'),T:L('изотермический','изотермиялық'),Q:L('адиабатный','адиабаталық')});
+function renderTheory(){
+  const card=(l,r)=>`<div class="card"><div class="tcard"><div class="stack">${l}</div><div class="stack sticky">${r}</div></div></div>`;
+  const P=(r,k)=>`<p>${L(r,k)}</p>`;
+  $('#theoryBox').innerHTML=
+  card(`<h2>${L('1. Внутренняя энергия. Работа газа. Количество теплоты','1. Ішкі энергия. Газдың жұмысы. Жылу мөлшері')}</h2>
+    ${P('<b>Внутренняя энергия</b> U — сумма кинетической энергии хаотического движения молекул и потенциальной энергии их взаимодействия. Для идеального газа она определяется только температурой:','<b>Ішкі энергия</b> U — молекулалардың ретсіз қозғалысының кинетикалық энергиясы мен олардың өзара әрекеттесуінің потенциалдық энергиясының қосындысы. Идеал газ үшін ол тек температурамен анықталады:')}
+    <div class="fgrid"><div><span class="fblock">U = ${frac(3,2)}νRT = ${frac(3,2)}pV</span><span class="fcap">${L('одноатомный газ','бір атомды газ')}</span></div><div><span class="fblock">U = ${frac(5,2)}νRT</span><span class="fcap">${L('двухатомный газ','екі атомды газ')}</span></div><div><span class="fblock">ΔU = ${frac('i',2)}νRΔT</span><span class="fcap">${L('i = 3 или 5','i = 3 немесе 5')}</span></div></div>
+    ${P('Внутреннюю энергию можно изменить двумя способами: <b>совершением работы</b> и <b>теплопередачей</b>. <b>Работа газа</b> при постоянном давлении A′ = pΔV; в общем случае она численно равна <b>площади под графиком</b> процесса на p–V диаграмме. При расширении газ совершает положительную работу, при сжатии — отрицательную (работа внешних сил A = −A′).','Ішкі энергияны екі тәсілмен өзгертуге болады: <b>жұмыс жасау</b> және <b>жылу беру</b> арқылы. Тұрақты қысымдағы <b>газдың жұмысы</b> A′ = pΔV; жалпы жағдайда ол сан жағынан p–V диаграммасындағы процесс <b>графигінің астындағы ауданға</b> тең. Ұлғайғанда газ оң жұмыс, сығылғанда — теріс жұмыс жасайды (сыртқы күштердің жұмысы A = −A′).')}
+    <div class="fgrid"><div><span class="fblock">A′ = pΔV</span><span class="fcap">${L('работа газа','газ жұмысы')}</span></div><div><span class="fblock">Q = cmΔT</span><span class="fcap">${L('нагревание','қыздыру')}</span></div><div><span class="fblock">Q = qm</span><span class="fcap">${L('сгорание топлива','отынның жануы')}</span></div><div><span class="fblock">Q = λm, &nbsp;Q = Lm</span><span class="fcap">${L('плавление, парообразование','балқу, булану')}</span></div></div>`,
+    `${fig('th1',L('Работа газа — площадь под графиком p(V)','Газдың жұмысы — p(V) графигінің астындағы аудан'))}`)+
+  card(`<h2>${L('2. Первый закон термодинамики и его применение','2. Термодинамиканың бірінші заңы және оны қолдану')}</h2>
+    <div class="defn law">${L('<b>Первый закон термодинамики</b> (закон сохранения энергии для тепловых процессов): количество теплоты, переданное системе, идёт на изменение её внутренней энергии и на совершение системой работы:','<b>Термодинамиканың бірінші заңы</b> (жылулық процестер үшін энергияның сақталу заңы): жүйеге берілген жылу мөлшері оның ішкі энергиясын өзгертуге және жүйенің жұмыс жасауына жұмсалады:')}<span class="fblock">Q = ΔU + A′, &nbsp; ${L('или','немесе')} &nbsp; ΔU = Q + A</span></div>
+    <div class="tbl-wrap"><table class="cmp"><thead><tr><th>${L('Процесс','Процесс')}</th><th>${L('Условие','Шарты')}</th><th>${L('Первый закон','Бірінші заң')}</th><th>${L('Для одноатомного газа','Бір атомды газ үшін')}</th></tr></thead><tbody>
+      <tr><td><b>${PN().V}</b></td><td>V = const, A′ = 0</td><td>Q = ΔU</td><td>Q = ${frac(3,2)}νRΔT</td></tr>
+      <tr><td><b>${PN().p}</b></td><td>p = const</td><td>Q = ΔU + pΔV</td><td>Q = ${frac(5,2)}νRΔT, A′ = νRΔT</td></tr>
+      <tr><td><b>${PN().T}</b></td><td>T = const, ΔU = 0</td><td>Q = A′</td><td>A′ = νRT ln${frac('V₂','V₁')}</td></tr>
+      <tr><td><b>${PN().Q}</b></td><td>Q = 0</td><td>A′ = −ΔU</td><td>${L('расширение — охлаждение','ұлғаю — суыну')}</td></tr></tbody></table></div>
+    ${P('Следствие: невозможен <b>вечный двигатель первого рода</b> — машина, совершающая работу без затраты энергии. Знаки: Q &gt; 0 — газ получает теплоту, Q &lt; 0 — отдаёт; A′ &gt; 0 — газ расширяется.','Салдары: <b>бірінші текті мәңгілік қозғалтқыш</b> — энергия жұмсамай жұмыс жасайтын машина мүмкін емес. Таңбалар: Q &gt; 0 — газ жылу алады, Q &lt; 0 — береді; A′ &gt; 0 — газ ұлғаяды.')}
+    <div class="ex"><span class="lbl">${L('Пример','Мысал')}</span>${L('2 моль одноатомного газа изобарно нагрели на 50 К. Найдите A′, ΔU и Q.','2 моль бір атомды газды изобаралық жолмен 50 К-ге қыздырды. A′, ΔU және Q табыңыз.')}<br><span class="m">A′ = νRΔT = 2 · 8,31 · 50 = 831 ${JJ}; &nbsp; ΔU = ${frac(3,2)} · 831 ≈ 1247 ${JJ}; &nbsp; Q = ΔU + A′ ≈ 2078 ${JJ}</span></div>`,
+    `${fig('th2',L('Один и тот же переход 1 → 2 при разных процессах: работа (площадь) разная, а ΔU одинаково','Әр түрлі процестердегі бір ғана 1 → 2 ауысу: жұмыс (аудан) әр түрлі, ал ΔU бірдей'))}`)+
+  card(`<h2>${L('3. Второй закон термодинамики','3. Термодинамиканың екінші заңы')}</h2>
+    ${P('Тепловые процессы <b>необратимы</b>: они самопроизвольно идут только в одном направлении. Чай остывает, а не нагревается сам; газ расширяется в пустоту, но сам не собирается в одной части сосуда.','Жылулық процестер <b>қайтымсыз</b>: олар өздігінен тек бір бағытта жүреді. Шай өзі қызбайды, суиды; газ бос кеңістікке ұлғаяды, бірақ ыдыстың бір бөлігіне өзі жиналмайды.')}
+    <div class="defn law">${L('<b>Второй закон термодинамики:</b> невозможен процесс, единственным результатом которого была бы передача теплоты от холодного тела к горячему (Клаузиус). Невозможно создать периодически действующий двигатель, который полностью превращал бы теплоту в работу (вечный двигатель второго рода).','<b>Термодинамиканың екінші заңы:</b> жалғыз нәтижесі суық денеден ыстық денеге жылу беру болатын процесс мүмкін емес (Клаузиус). Жылуды толығымен жұмысқа айналдыратын периодты әрекет ететін қозғалтқыш (екінші текті мәңгілік қозғалтқыш) жасау мүмкін емес.')}</div>
+    ${P('Поэтому любой тепловой двигатель обязательно отдаёт часть теплоты холодильнику, а холодильная машина переносит теплоту от холодного тела к горячему только за счёт работы внешнего источника (компрессора).','Сондықтан кез келген жылу қозғалтқышы жылудың бір бөлігін міндетті түрде суытқышқа береді, ал тоңазытқыш машина жылуды суық денеден ыстық денеге тек сыртқы көздің (компрессордың) жұмысы есебінен тасымалдайды.')}`,
+    `<div class="note">${L('<b>Необратимые процессы:</b> теплопередача от горячего к холодному, трение, диффузия, расширение газа в пустоту, смешивание жидкостей. Обратить их без изменений в окружающих телах невозможно.','<b>Қайтымсыз процестер:</b> ыстықтан суыққа жылу беру, үйкеліс, диффузия, газдың бос кеңістікке ұлғаюы, сұйықтардың араласуы. Оларды қоршаған денелерде өзгеріссіз кері қайтару мүмкін емес.')}</div>`)+
+  card(`<h2>${L('4. Тепловые двигатели. КПД. Цикл Карно','4. Жылу қозғалтқыштары. ПӘК. Карно циклі')}</h2>
+    ${P('<b>Тепловой двигатель</b> — устройство, превращающее внутреннюю энергию топлива в механическую работу. Основные части: <b>нагреватель</b> (температура T₁), <b>рабочее тело</b> (газ или пар), <b>холодильник</b> (T₂, обычно атмосфера). За цикл рабочее тело получает от нагревателя Q₁, отдаёт холодильнику Q₂ и совершает работу A = Q₁ − Q₂.','<b>Жылу қозғалтқышы</b> — отынның ішкі энергиясын механикалық жұмысқа айналдыратын құрылғы. Негізгі бөліктері: <b>қыздырғыш</b> (температурасы T₁), <b>жұмыстық дене</b> (газ немесе бу), <b>суытқыш</b> (T₂, әдетте атмосфера). Цикл ішінде жұмыстық дене қыздырғыштан Q₁ алады, суытқышқа Q₂ береді және A = Q₁ − Q₂ жұмыс жасайды.')}
+    <div class="defn law">${L('<b>Коэффициент полезного действия</b> теплового двигателя:','Жылу қозғалтқышының <b>пайдалы әрекет коэффициенті</b>:')}<span class="fblock">η = ${frac('A','Q₁')} = ${frac('Q₁ − Q₂','Q₁')} · 100 %</span></div>
+    ${P('С. Карно показал, что наибольший КПД имеет идеальная машина, работающая по циклу из двух изотерм и двух адиабат (<b>цикл Карно</b>). Его КПД зависит только от температур нагревателя и холодильника и всегда меньше 100 %:','С. Карно ең үлкен ПӘК-ке екі изотерма мен екі адиабатадан тұратын цикл (<b>Карно циклі</b>) бойынша жұмыс істейтін идеал машина ие болатынын көрсетті. Оның ПӘК-і тек қыздырғыш пен суытқыштың температураларына тәуелді және әрқашан 100 %-дан кем:')}
+    <span class="fblock">η<sub>max</sub> = ${frac('T₁ − T₂','T₁')} · 100 %</span>
+    <div class="tbl-wrap"><table class="cmp"><thead><tr><th>${L('Двигатель','Қозғалтқыш')}</th><th>${L('КПД','ПӘК')}</th></tr></thead><tbody><tr><td>${L('паровая машина','бу машинасы')}</td><td>≈ 8–15 %</td></tr><tr><td>${L('карбюраторный (бензиновый) ДВС','карбюраторлы (бензинді) ІЖҚ')}</td><td>≈ 25–30 %</td></tr><tr><td>${L('дизель','дизель')}</td><td>≈ 35–45 %</td></tr><tr><td>${L('паровая турбина','бу турбинасы')}</td><td>≈ 30–40 %</td></tr><tr><td>${L('реактивный двигатель','реактивті қозғалтқыш')}</td><td>≈ 30–50 %</td></tr></tbody></table></div>
+    <div class="ex"><span class="lbl">${L('Пример','Мысал')}</span>${L('Температура нагревателя 527 °C, холодильника 27 °C. Максимальный КПД:','Қыздырғыштың температурасы 527 °C, суытқыштікі 27 °C. Ең үлкен ПӘК:')}<br><span class="m">T₁ = 800 K, T₂ = 300 K; &nbsp; η<sub>max</sub> = ${frac('800 − 300','800')} = 0,625 = 62,5 %</span></div>
+    <button class="btn sm ghost" data-go="cyc" style="align-self:start">${L('Построить цикл на модели →','Модельде цикл салу →')}</button>`,
+    `${fig('th3',L('Схема теплового двигателя','Жылу қозғалтқышының сұлбасы'),400)}${fig('th4',L('Цикл Карно: 1→2 изотермическое расширение (получает Q₁), 2→3 адиабатное расширение, 3→4 изотермическое сжатие (отдаёт Q₂), 4→1 адиабатное сжатие','Карно циклі: 1→2 изотермиялық ұлғаю (Q₁ алады), 2→3 адиабаталық ұлғаю, 3→4 изотермиялық сығылу (Q₂ береді), 4→1 адиабаталық сығылу'))}`)+
+  card(`<h2>${L('5. Двигатель внутреннего сгорания. Тепловые машины и экология','5. Іштен жану қозғалтқышы. Жылу машиналары және экология')}</h2>
+    ${P('Четырёхтактный двигатель внутреннего сгорания (ДВС) работает циклически; за два оборота вала происходят четыре такта:','Төрт тактілі іштен жану қозғалтқышы (ІЖҚ) циклді жұмыс істейді; білік екі айналғанда төрт такт өтеді:')}
+    <ol class="steps"><li><div><b>${L('Впуск','Кіріс')}</b> — ${L('поршень идёт вниз, впускной клапан открыт, в цилиндр всасывается горючая смесь.','поршень төмен жүреді, кіріс клапаны ашық, цилиндрге жанғыш қоспа сорылады.')}</div></li><li><div><b>${L('Сжатие','Сығу')}</b> — ${L('клапаны закрыты, поршень идёт вверх и сжимает смесь, её температура растёт.','клапандар жабық, поршень жоғары жүріп, қоспаны сығады, оның температурасы артады.')}</div></li><li><div><b>${L('Рабочий ход','Жұмыстық жүріс')}</b> — ${L('искра свечи поджигает смесь, горячие газы толкают поршень вниз и совершают работу.','білте ұшқыны қоспаны тұтандырады, ыстық газдар поршеньді төмен итеріп, жұмыс жасайды.')}</div></li><li><div><b>${L('Выпуск','Шығыс')}</b> — ${L('выпускной клапан открыт, поршень выталкивает отработанные газы.','шығыс клапаны ашық, поршень пайдаланылған газдарды итеріп шығарады.')}</div></li></ol>
+    ${P('Отношение наибольшего объёма цилиндра к наименьшему — <b>степень сжатия</b> ε. Чем она больше, тем выше КПД (у дизелей ε ≈ 15–20, смесь воспламеняется от сжатия без свечи).','Цилиндрдің ең үлкен көлемінің ең кіші көлеміне қатынасы — <b>сығу дәрежесі</b> ε. Ол неғұрлым үлкен болса, ПӘК соғұрлым жоғары (дизельдерде ε ≈ 15–20, қоспа білтесіз сығылудан тұтанады).')}
+    <div class="note">${L('<b>Экология.</b> Тепловые машины выбрасывают в атмосферу CO₂, оксиды азота и серы, сажу, отдают окружающей среде большое количество теплоты (тепловое загрязнение). Пути решения: повышение КПД, очистка выхлопа, электромобили, использование возобновляемых источников энергии (солнечные и ветровые электростанции, в том числе в Казахстане).','<b>Экология.</b> Жылу машиналары атмосфераға CO₂, азот пен күкірт оксидтерін, күйе шығарады, қоршаған ортаға көп жылу береді (жылулық ластану). Шешу жолдары: ПӘК-ті арттыру, шығатын газды тазарту, электромобильдер, жаңартылатын энергия көздерін (күн және жел электр станциялары, соның ішінде Қазақстанда) пайдалану.')}</div>
+    <button class="btn sm ghost" data-go="ice" style="align-self:start">${L('Запустить двигатель на модели →','Модельде қозғалтқышты іске қосу →')}</button>`,
+    `${fig('th5',L('Рабочий ход четырёхтактного двигателя','Төрт тактілі қозғалтқыштың жұмыстық жүрісі'),300)}`);
+  pvFig($('#th1'),{V1:6,p1:300,segs:[{pts:lin([1,200],[5,200]),col:'var(--c1)'},{pts:isoT(1,5,200,40),col:'var(--c3)',dash:'6 5',arrow:false}],fill:[[1,0],[1,200],[5,200],[5,0]],labels:[{V:1,p:200,t:'1'},{V:5,p:200,t:'2'}],note:"A′ = pΔV"});
+  {const a=[1,250],b=[4,100];pvFig($('#th2'),{V1:5,p1:300,segs:[{pts:lin(a,[4,250]).concat(lin([4,250],b)),col:'var(--c1)',lab:'1→a→2',ldx:-30,ldy:-12},{pts:lin(a,[1,100]).concat(lin([1,100],b)),col:'var(--c4)',lab:'1→b→2',ldx:6,ldy:18},{pts:lin(a,b),col:'var(--c2)',dash:'6 5'}],labels:[{V:1,p:250,t:'1'},{V:4,p:100,t:'2'}]});}
+  figEngine($('#th3'));
+  {const T1=600,T2=300,nu=.1,V1=1,V2=2.2,g=5/3,k=Math.pow(T1/T2,1/(g-1)),V3=V2*k,V4=V1*k,C1=nu*RG*T1,C2=nu*RG*T2;const A2=C1*V2/Math.pow(V2,g)*Math.pow(V2,g);
+    pvFig($('#th4'),{V1:7,p1:550,segs:[{pts:isoT(V1,V2,C1),col:'#dc2626',lab:'T₁'},{pts:adia(V2,V3,C1/V2*Math.pow(V2,g),g),col:'var(--muted)'},{pts:isoT(V3,V4,C2),col:'#2563eb',lab:'T₂',ldy:-10},{pts:adia(V4,V1,C2/V4*Math.pow(V4,g),g),col:'var(--muted)'}],labels:[{V:V1,p:C1/V1,t:'1'},{V:V2,p:C1/V2,t:'2'},{V:V3,p:C2/V3,t:'3',dy:-10},{V:V4,p:C2/V4,t:'4',dx:-16,dy:-10}],fill:isoT(V1,V2,C1).concat(adia(V2,V3,C1/V2*Math.pow(V2,g),g),isoT(V3,V4,C2),adia(V4,V1,C2/V4*Math.pow(V4,g),g))});}
+  figICE($('#th5'),{th:420,eps:8,W:300,H:440});
+  $('#theoryBox').querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>{showTab(b.dataset.go);scrollTo(0,0);}));}
+
+/* ================= МОДЕЛЬ 1: цикл ================= */
+const CY={type:'rect',i:3,p1:100,p2:300,V1:2,V2:6,T1:600,T2:300,Va:1,Vb:2.5,nu:.1,s:0,run:false,raf:0};
+function cyLegs(){const i=CY.i,g=(i+2)/i,nu=CY.nu,legs=[];
+  if(CY.type==='rect'){const P=[[CY.V1,CY.p1],[CY.V1,CY.p2],[CY.V2,CY.p2],[CY.V2,CY.p1]];const nm=[PN().V,PN().p,PN().V,PN().p];
+    for(let k=0;k<4;k++){const a=P[k],b=P[(k+1)%4];const dU=i/2*(b[0]*b[1]-a[0]*a[1]),A=(k%2?a[1]*(b[0]-a[0]):0);legs.push({n:`${k+1}→${k%4+2>4?1:k+2}`,name:nm[k],pts:lin(a,b,30),dU,A,Q:dU+A});}
+    const T=P.map(([V,p])=>V*p/(nu*RG));return{legs,P,Tmax:Math.max(...T),Tmin:Math.min(...T)};}
+  const T1=CY.T1,T2=CY.T2,V1=CY.Va,V2=CY.Vb,k=Math.pow(T1/T2,1/(g-1)),V3=V2*k,V4=V1*k,C1=nu*RG*T1,C2=nu*RG*T2;const P=[[V1,C1/V1],[V2,C1/V2],[V3,C2/V3],[V4,C2/V4]];
+  const A12=C1*Math.log(V2/V1),A34=-C2*Math.log(V3/V4),Aad=i/2*nu*RG*(T1-T2);
+  legs.push({n:'1→2',name:PN().T,pts:isoT(V1,V2,C1),dU:0,A:A12,Q:A12});legs.push({n:'2→3',name:PN().Q,pts:adia(V2,V3,C1/V2*Math.pow(V2,g),g),dU:-Aad,A:Aad,Q:0});legs.push({n:'3→4',name:PN().T,pts:isoT(V3,V4,C2),dU:0,A:A34,Q:A34});legs.push({n:'4→1',name:PN().Q,pts:adia(V4,V1,C2/V4*Math.pow(V4,g),g),dU:Aad,A:-Aad,Q:0});
+  return{legs,P,Tmax:T1,Tmin:T2};}
+function cyControls(){$('#yType').innerHTML=[['rect',L('Прямоугольный цикл (2 изохоры + 2 изобары)','Тікбұрышты цикл (2 изохора + 2 изобара)')],['carnot',L('Цикл Карно (2 изотермы + 2 адиабаты)','Карно циклі (2 изотерма + 2 адиабата)')]].map(([k,n])=>`<button data-t="${k}" aria-pressed="${CY.type===k}">${n}</button>`).join('');
+  $('#yGas').innerHTML=[[3,L('одноатомный (i = 3)','бір атомды (i = 3)')],[5,L('двухатомный (i = 5)','екі атомды (i = 5)')]].map(([k,n])=>`<button data-i="${k}" aria-pressed="${CY.i===k}">${n}</button>`).join('');
+  const sl=(k,n,lo,hi,stp,u)=>`<div class="sl"><span class="m">${n}</span><input type="range" data-k="${k}" min="${lo}" max="${hi}" step="${stp}" value="${CY[k]}"><span class="vl">${fmt(CY[k],3)} ${u}</span></div>`;
+  $('#yCtl').innerHTML=CY.type==='rect'?sl('p1','p₁',50,250,10,kPa)+sl('p2','p₂',100,500,10,kPa)+sl('V1','V₁',1,4,.5,Lt)+sl('V2','V₂',3,10,.5,Lt):sl('T1','T₁',350,900,10,KK)+sl('T2','T₂',200,500,10,KK)+sl('Va','V₁',.5,2,.1,Lt)+sl('Vb','V₂',1,4,.1,Lt);
+  $('#yBtns').innerHTML=`<button class="btn" data-a="go">${CY.run?L('⏸ Пауза','⏸ Үзіліс'):L('▶ Пройти цикл','▶ Циклден өту')}</button>`;
+  $('#yTip').innerHTML=L('Газ: ν = 0,1 моль. Единицы подобраны так, что 1 кПа · 1 л = 1 Дж. Красные участки — газ получает теплоту (Q &gt; 0), синие — отдаёт (Q &lt; 0). Работа за цикл равна площади внутри цикла. КПД сравнивается с КПД цикла Карно для тех же наибольшей и наименьшей температур.','Газ: ν = 0,1 моль. Бірліктер 1 кПа · 1 л = 1 Дж болатындай таңдалған. Қызыл бөліктер — газ жылу алады (Q &gt; 0), көктері — береді (Q &lt; 0). Цикл ішіндегі жұмыс цикл ішіндегі ауданға тең. ПӘК сол ең үлкен және ең кіші температуралар үшін Карно циклінің ПӘК-імен салыстырылады.');}
+function cyDraw(){if(CY.type==='rect'&&CY.p2<=CY.p1)CY.p2=CY.p1+10;if(CY.type==='rect'&&CY.V2<=CY.V1)CY.V2=CY.V1+.5;if(CY.type==='carnot'&&CY.T2>=CY.T1)CY.T2=CY.T1-10;if(CY.type==='carnot'&&CY.Vb<=CY.Va)CY.Vb=CY.Va+.1;
+  const C=cyLegs();const all=[].concat(...C.legs.map(l=>l.pts));const Vm=Math.max(...all.map(p=>p[0]))*1.12,pm=Math.max(...all.map(p=>p[1]))*1.15;
+  if(!isFinite(CY.s))CY.s=0;CY.s=((CY.s%4)+4)%4;const s=CY.s,frac_=CY.s-Math.floor(CY.s);const leg=C.legs[Math.min(3,Math.floor(s))];const dot=leg.pts[Math.min(leg.pts.length-1,Math.round(frac_*(leg.pts.length-1)))];
+  pvFig($('#ySvg'),{W:600,H:420,V1:Vm,p1:pm,fill:all,segs:C.legs.map((l,k)=>({pts:l.pts,col:l.Q>1e-6?'#dc2626':l.Q<-1e-6?'#2563eb':'var(--muted)',w:Math.floor(s)===k?5:3.2})),labels:C.P.map((p,k)=>({V:p[0],p:p[1],t:String(k+1)})),dot});
+  const Q1=C.legs.reduce((a,l)=>a+Math.max(0,l.Q),0),Q2=-C.legs.reduce((a,l)=>a+Math.min(0,l.Q),0),A=C.legs.reduce((a,l)=>a+l.A,0);const eta=A/Q1,ec=1-C.Tmin/C.Tmax;
+  $('#yTab').innerHTML=`<div class="tbl-wrap"><table class="cmp"><thead><tr><th>${L('Участок','Бөлік')}</th><th>${L('Процесс','Процесс')}</th><th>ΔU, ${JJ}</th><th>A′, ${JJ}</th><th>Q, ${JJ}</th></tr></thead><tbody>${C.legs.map((l,k)=>`<tr style="${Math.floor(s)===k?'background:var(--accent-soft)':''}"><td>${l.n}</td><td>${l.name}</td><td>${fmt(l.dU,3)}</td><td>${fmt(l.A,3)}</td><td style="color:${l.Q>1e-6?'#dc2626':l.Q<-1e-6?'#2563eb':'inherit'};font-weight:700">${fmt(l.Q,3)}</td></tr>`).join('')}<tr><td colspan="2"><b>${L('за цикл','цикл ішінде')}</b></td><td>0</td><td><b>${fmt(A,3)}</b></td><td><b>${fmt(Q1-Q2,3)}</b></td></tr></tbody></table></div>`;
+  $('#yRead').innerHTML=cell(L('Получено от нагревателя Q₁','Қыздырғыштан алынды Q₁'),fmt(Q1,3)+' '+JJ)+cell(L('Отдано холодильнику Q₂','Суытқышқа берілді Q₂'),fmt(Q2,3)+' '+JJ)+cell(L('Работа за цикл A = Q₁ − Q₂','Цикл ішіндегі жұмыс A = Q₁ − Q₂'),fmt(A,3)+' '+JJ)+cell(L('КПД цикла η = A/Q₁','Цикл ПӘК-і η = A/Q₁'),fmt(eta*100,3)+' %')+cell('T<sub>max</sub> / T<sub>min</sub>',fmt(C.Tmax,4)+' / '+fmt(C.Tmin,4)+' K')+cell(L('КПД Карно 1 − T<sub>min</sub>/T<sub>max</sub>','Карно ПӘК-і 1 − T<sub>min</sub>/T<sub>max</sub>'),fmt(ec*100,3)+' %');}
+function cyStop(){CY.run=false;cancelAnimationFrame(CY.raf);cyControls();}
+function cyGo(){CY.run=true;cyControls();let prev=performance.now();const step=now=>{const dt=Math.max(0,Math.min(.05,(now-prev)/1000));prev=now;CY.s+=dt*.6;if(CY.s>=4){CY.s=0;}cyDraw();CY.raf=requestAnimationFrame(step);};CY.raf=requestAnimationFrame(step);}
+$('#p-cyc').addEventListener('input',e=>{const s=e.target;if(!s.dataset.k)return;CY[s.dataset.k]=+s.value;s.nextElementSibling.textContent=fmt(+s.value,3)+' '+({p1:kPa,p2:kPa,V1:Lt,V2:Lt,T1:KK,T2:KK,Va:Lt,Vb:Lt}[s.dataset.k]);cyDraw();});
+$('#p-cyc').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.t){CY.type=b.dataset.t;CY.s=0;cyControls();cyDraw();}else if(b.dataset.i){CY.i=+b.dataset.i;cyControls();cyDraw();}else if(b.dataset.a==='go'){if(CY.run)cyStop();else cyGo();}});
+
+/* ================= МОДЕЛЬ 2: ДВС ================= */
+const IC={th:0,eps:8,run:false,raf:0,spd:60};
+const ICg=1.4;
+function icPV(th){th=((th%720)+720)%720;const e=IC.eps,Vc=1,Vs=e-1,x=(1-Math.cos(th*Math.PI/180))/2,V=Vc+Vs*x,p0=1;const p2=p0*Math.pow(e,ICg),p3=p2*3;
+  if(th<180)return[V,p0];if(th<360)return[V,p0*Math.pow(e/V,ICg)];if(th<540)return[V,p3*Math.pow(1/V,ICg)];return[V,p0];}
+function icControls(){$('#iCtl').innerHTML=`<div class="sl"><span class="m">ε</span><input type="range" id="iEps" min="4" max="20" step="1" value="${IC.eps}"><span class="vl">${IC.eps}</span></div><div class="sl"><span class="m">${L('скорость','жылдамдық')}</span><input type="range" id="iSpd" min="10" max="240" step="10" value="${IC.spd}"><span class="vl">${IC.spd}°/${ss}</span></div><div class="sl"><span class="m">θ</span><input type="range" id="iTh" min="0" max="719" step="1" value="${Math.round(IC.th)%720}"><span class="vl">${Math.round(IC.th)%720}°</span></div>`;
+  $('#iBtns').innerHTML=`<button class="btn" data-a="go">${IC.run?L('⏸ Пауза','⏸ Үзіліс'):L('▶ Пуск','▶ Іске қосу')}</button>`+[0,1,2,3].map(k=>`<button class="btn ghost sm" data-ph="${k}">${[L('Впуск','Кіріс'),L('Сжатие','Сығу'),L('Рабочий ход','Жұмыстық жүріс'),L('Выпуск','Шығыс')][k]}</button>`).join('');
+  $('#iTip').innerHTML=L('Модель идеализированного цикла Отто: впуск (p = p₀), адиабатное сжатие, мгновенное сгорание при положении поршня в верхней точке, адиабатный рабочий ход, выпуск. Площадь петли на p–V диаграмме — полезная работа за цикл. Увеличьте степень сжатия ε — КПД вырастет: η = 1 − 1/ε<sup>γ−1</sup> (γ = 1,4).','Отто идеалдандырылған циклінің моделі: кіріс (p = p₀), адиабаталық сығу, поршень жоғарғы нүктеде тұрғанда лезде жану, адиабаталық жұмыстық жүріс, шығыс. p–V диаграммасындағы ілмек ауданы — цикл ішіндегі пайдалы жұмыс. Сығу дәрежесін ε арттырыңыз — ПӘК өседі: η = 1 − 1/ε<sup>γ−1</sup> (γ = 1,4).');}
+function icDraw(){const th=((IC.th%720)+720)%720,ph=Math.floor(th/180);figICE($('#iSvg'),{th,eps:IC.eps,W:360,H:460});
+  const curve=[];for(let a=0;a<720;a+=3)curve.push(icPV(a));const[Vn,pn]=icPV(th);const pm=Math.max(...curve.map(p=>p[1]));
+  pvFig($('#iPV'),{W:560,H:400,V1:IC.eps*1.08,p1:pm*1.1,xl:'V, V<sub>c</sub>'.replace(/<[^>]+>/g,''),yl:L('p, p₀','p, p₀'),segs:[{pts:curve.slice(60,120),col:'#ca8a04',arrow:true},{pts:curve.slice(120,181),col:'#dc2626'},{pts:curve.slice(181,240),col:'var(--muted)'},{pts:curve.slice(0,61),col:'#16a34a'}],dot:[Vn,pn],fill:curve.slice(60,181)});
+  const names=[L('Впуск: впускной клапан открыт, смесь всасывается','Кіріс: кіріс клапаны ашық, қоспа сорылады'),L('Сжатие: клапаны закрыты, смесь сжимается и нагревается','Сығу: клапандар жабық, қоспа сығылып, қызады'),L('Рабочий ход: смесь сгорает, газ толкает поршень и совершает работу','Жұмыстық жүріс: қоспа жанады, газ поршеньді итеріп, жұмыс жасайды'),L('Выпуск: выпускной клапан открыт, газы выходят','Шығыс: шығыс клапаны ашық, газдар шығады')];
+  $('#iStat').className='status '+['uns','sat','cond','sat'][ph];$('#iStat').innerHTML=`${ph+1}. ${names[ph]}`;
+  const eta=1-Math.pow(IC.eps,1-ICg);$('#iRead').innerHTML=cell(L('Такт','Такт'),String(ph+1)+' / 4')+cell(L('Угол поворота вала θ','Біліктің бұрылу бұрышы θ'),Math.round(th)+'°')+cell(L('Объём V/V<sub>c</sub>','Көлем V/V<sub>c</sub>'),fmt(Vn,3))+cell(L('Давление p/p₀','Қысым p/p₀'),fmt(pn,3))+cell(L('Степень сжатия ε','Сығу дәрежесі ε'),String(IC.eps))+cell(L('КПД цикла Отто','Отто циклінің ПӘК-і'),fmt(eta*100,3)+' %');
+  const t=$('#iTh');if(t){t.value=Math.round(th);t.nextElementSibling.textContent=Math.round(th)+'°';}}
+function icStop(){IC.run=false;cancelAnimationFrame(IC.raf);icControls();}
+function icGo(){IC.run=true;icControls();let prev=performance.now();const step=now=>{const dt=Math.max(0,Math.min(.05,(now-prev)/1000));prev=now;IC.th=(IC.th+dt*IC.spd)%720;icDraw();IC.raf=requestAnimationFrame(step);};IC.raf=requestAnimationFrame(step);}
+$('#p-ice').addEventListener('input',e=>{const s=e.target;if(s.id==='iEps'){IC.eps=+s.value;s.nextElementSibling.textContent=s.value;icDraw();}else if(s.id==='iSpd'){IC.spd=+s.value;s.nextElementSibling.textContent=s.value+'°/'+ss;}else if(s.id==='iTh'){if(IC.run){IC.run=false;cancelAnimationFrame(IC.raf);$('#iBtns [data-a=go]').textContent=L('▶ Пуск','▶ Іске қосу');}IC.th=+s.value;icDraw();}});
+$('#p-ice').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.a==='go'){if(IC.run)icStop();else icGo();}else if(b.dataset.ph!=null){icStop();IC.th=+b.dataset.ph*180+90;icDraw();}});
+
+/* ================= ЗАДАЧИ ================= */
+const C2K=t=>t+273;
+function pU(){const P={cat:'U'};const mode=pick(['U','dU','pV']);const nu=pick([1,2,3,5,10]),T=pick([200,250,300,400,500]);
+  if(mode==='U'){const U=1.5*nu*RG*T;P.ans=U/1000;P.unit=kJ;P.text=L(`Найдите внутреннюю энергию ${nu} моль одноатомного идеального газа при температуре ${T} К.`,`${T} К температурадағы ${nu} моль бір атомды идеал газдың ішкі энергиясын табыңыз.`);P.given=`ν = ${nu} ${mol}, T = ${T} ${KK}, i = 3`;
+    P.steps=[st(L('Внутренняя энергия одноатомного газа:','Бір атомды газдың ішкі энергиясы:'),`U = ${frac(3,2)}νRT = 1,5 · ${nu} · 8,31 · ${T} = ${fmt(U,4)} ${JJ} = ${fmt(U/1000,4)} ${kJ}`)];P.trap={v:nu*RG*T/1000,msg:L('Не забудьте множитель 3/2.','3/2 көбейткішін ұмытпаңыз.')};P.wr=[nu*RG*T/1000,2.5*nu*RG*T/1000,U/2000];}
+  else if(mode==='dU'){const dT=pick([10,20,50,100]),i=pick([3,5]);const dU=i/2*nu*RG*dT;P.ans=dU;P.unit=JJ;P.text=L(`На сколько изменится внутренняя энергия ${nu} моль ${i===3?'одноатомного':'двухатомного'} идеального газа при нагревании на ${dT} К?`,`${nu} моль ${i===3?'бір атомды':'екі атомды'} идеал газды ${dT} К-ге қыздырғанда оның ішкі энергиясы қаншаға өзгереді?`);P.given=`ν = ${nu} ${mol}, ΔT = ${dT} ${KK}, i = ${i}`;
+    P.steps=[st(L('Изменение внутренней энергии:','Ішкі энергияның өзгерісі:'),`ΔU = ${frac('i',2)}νRΔT = ${frac(i,2)} · ${nu} · 8,31 · ${dT} = ${fmt(dU,4)} ${JJ}`)];P.trap={v:(i===3?2.5:1.5)*nu*RG*dT,msg:L('Для одноатомного газа i = 3, для двухатомного i = 5.','Бір атомды газ үшін i = 3, екі атомды газ үшін i = 5.')};P.wr=[(i===3?2.5:1.5)*nu*RG*dT,nu*RG*dT,dU*2];}
+  else{const p=pick([100,150,200,300]),V=pick([2,5,10,20]);const U=1.5*p*V;P.ans=U;P.unit=JJ;P.text=L(`Одноатомный идеальный газ занимает объём ${V} л при давлении ${p} кПа. Найдите его внутреннюю энергию.`,`Бір атомды идеал газ ${p} кПа қысымда ${V} л көлемді алады. Оның ішкі энергиясын табыңыз.`);P.given=`p = ${p} ${kPa} = ${p*1000} ${Pa}, V = ${V} ${Lt} = ${fmt(V/1000)} м³`;
+    P.steps=[st(L('Так как νRT = pV:','νRT = pV болғандықтан:'),`U = ${frac(3,2)}pV = 1,5 · ${p*1000} · ${fmt(V/1000)} = ${fmt(U,4)} ${JJ}`)];P.trap={v:p*V,msg:L('U = 3/2 · pV.','U = 3/2 · pV.')};P.wr=[p*V,1.5*p*V*1000,2.5*p*V];}
+  P.fig=(svg,show)=>{svg0(svg,400,300);el('rect',{x:110,y:60,width:180,height:180,rx:10,fill:'var(--accent-soft)',stroke:'var(--c1)','stroke-width':2.4},svg);for(let k=0;k<18;k++){const x=130+((k*53)%150),y=80+((k*37)%140);el('circle',{cx:x,cy:y,r:5,fill:'var(--c2)'},svg);arr(svg,x,y,x+((k*7)%13-6)*3,y+((k*11)%13-6)*3,'var(--c2)',1.5);}txt(svg,show?`${fmt(P.ans,4)} ${P.unit}`:'U = ?',200,275,{'text-anchor':'middle','font-size':17,'font-weight':700,fill:'var(--c2)'});};
+  return P;}
+function pWork(){const P={cat:'work'};const mode=pick(['p','nu','trap','cycle']);
+  if(mode==='p'){const p=pick([100,150,200,300,500]),V1=pick([1,2,3,4]),V2=V1+pick([1,2,3,5]);const A=p*(V2-V1);P.ans=A;P.unit=JJ;P.text=L(`Газ при постоянном давлении ${p} кПа расширился от ${V1} л до ${V2} л. Найдите работу газа.`,`Газ ${p} кПа тұрақты қысымда ${V1} л-ден ${V2} л-ге дейін ұлғайды. Газдың жұмысын табыңыз.`);P.given=`p = ${p} ${kPa}, V₁ = ${V1} ${Lt}, V₂ = ${V2} ${Lt}`;
+    P.steps=[st(L('Работа при изобарном расширении:','Изобаралық ұлғаюдағы жұмыс:'),`A′ = p(V₂ − V₁) = ${p*1000} · ${fmt((V2-V1)/1000)} = ${fmt(A,4)} ${JJ}`)];P.trap={v:p*V2,msg:L('Нужно изменение объёма ΔV = V₂ − V₁.','Көлем өзгерісі ΔV = V₂ − V₁ керек.')};P.wr=[p*V2,p*(V2-V1)*1000,A/2];
+    P.fig=(svg,show)=>pvFig(svg,{V1:V2*1.25,p1:p*1.5,segs:[{pts:lin([V1,p],[V2,p])}],fill:[[V1,0],[V1,p],[V2,p],[V2,0]],labels:[{V:V1,p,t:'1'},{V:V2,p,t:'2'}],note:show?`A′ = ${fmt(A,4)} ${JJ}`:'A′ = ?'});return P;}
+  if(mode==='nu'){const nu=pick([1,2,3,5]),dT=pick([10,20,50,100]);const A=nu*RG*dT;P.ans=A;P.unit=JJ;P.text=L(`${nu} моль идеального газа изобарно нагрели на ${dT} К. Какую работу совершил газ?`,`${nu} моль идеал газ изобаралық жолмен ${dT} К-ге қыздырылды. Газ қандай жұмыс жасады?`);P.given=`ν = ${nu} ${mol}, ΔT = ${dT} ${KK}, p = const`;
+    P.steps=[st(L('При p = const: pΔV = νRΔT:','p = const болғанда: pΔV = νRΔT:'),`A′ = νRΔT = ${nu} · 8,31 · ${dT} = ${fmt(A,4)} ${JJ}`)];P.trap={v:1.5*A,msg:L('Это изменение внутренней энергии; работа A′ = νRΔT.','Бұл ішкі энергияның өзгерісі; жұмыс A′ = νRΔT.')};P.wr=[1.5*A,2.5*A,A/2];}
+  else if(mode==='trap'){const V1=pick([1,2]),V2=V1+pick([2,3,4]),p1=pick([100,200]),p2=p1+pick([100,200]);const A=(p1+p2)/2*(V2-V1);P.ans=A;P.unit=JJ;P.text=L(`На p–V диаграмме газ переходит из состояния 1 (${p1} кПа; ${V1} л) в состояние 2 (${p2} кПа; ${V2} л) по прямой. Найдите работу газа.`,`p–V диаграммасында газ 1-күйден (${p1} кПа; ${V1} л) 2-күйге (${p2} кПа; ${V2} л) түзу бойымен өтеді. Газдың жұмысын табыңыз.`);P.given=`p₁ = ${p1} ${kPa}, V₁ = ${V1} ${Lt}, p₂ = ${p2} ${kPa}, V₂ = ${V2} ${Lt}`;
+    P.steps=[st(L('Работа — площадь трапеции под графиком:','Жұмыс — график астындағы трапеция ауданы:'),`A′ = ${frac('p₁ + p₂',2)}(V₂ − V₁) = ${frac(`${p1} + ${p2}`,2)} ${kPa} · ${V2-V1} ${Lt} = ${fmt(A,4)} ${JJ}`)];P.trap={v:p2*(V2-V1),msg:L('Давление меняется — берите площадь трапеции.','Қысым өзгереді — трапеция ауданын алыңыз.')};P.wr=[p2*(V2-V1),p1*(V2-V1),A*2];
+    P.fig=(svg,show)=>pvFig(svg,{V1:V2*1.25,p1:p2*1.3,segs:[{pts:lin([V1,p1],[V2,p2])}],fill:[[V1,0],[V1,p1],[V2,p2],[V2,0]],labels:[{V:V1,p:p1,t:'1'},{V:V2,p:p2,t:'2'}],note:show?`A′ = ${fmt(A,4)} ${JJ}`:'A′ = ?'});return P;}
+  else{const p1=pick([100,200]),p2=p1+pick([100,200,300]),V1=pick([1,2]),V2=V1+pick([2,3,4]);const A=(p2-p1)*(V2-V1);P.ans=A;P.unit=JJ;P.text=L(`Газ совершает цикл, изображённый на p–V диаграмме прямоугольником с вершинами (${V1} л; ${p1} кПа), (${V1} л; ${p2} кПа), (${V2} л; ${p2} кПа), (${V2} л; ${p1} кПа). Найдите работу газа за цикл.`,`Газ p–V диаграммасында төбелері (${V1} л; ${p1} кПа), (${V1} л; ${p2} кПа), (${V2} л; ${p2} кПа), (${V2} л; ${p1} кПа) болатын тіктөртбұрышпен бейнеленген цикл жасайды. Газдың цикл ішіндегі жұмысын табыңыз.`);P.given=`Δp = ${p2-p1} ${kPa}, ΔV = ${V2-V1} ${Lt}`;
+    P.steps=[st(L('Работа за цикл равна площади цикла:','Цикл ішіндегі жұмыс цикл ауданына тең:'),`A = (p₂ − p₁)(V₂ − V₁) = ${p2-p1} ${kPa} · ${V2-V1} ${Lt} = ${fmt(A,4)} ${JJ}`)];P.trap={v:p2*(V2-V1),msg:L('Это работа на участке расширения; при сжатии газ возвращает часть работы.','Бұл ұлғаю бөлігіндегі жұмыс; сығылуда газ жұмыстың бір бөлігін қайтарады.')};P.wr=[p2*(V2-V1),p1*(V2-V1),A*2];
+    P.fig=(svg,show)=>{const Pt=[[V1,p1],[V1,p2],[V2,p2],[V2,p1]];pvFig(svg,{V1:V2*1.25,p1:p2*1.3,segs:[0,1,2,3].map(k=>({pts:lin(Pt[k],Pt[(k+1)%4])})),fill:Pt,labels:Pt.map((p,k)=>({V:p[0],p:p[1],t:String(k+1)})),note:show?`A = ${fmt(A,4)} ${JJ}`:'A = ?'});};return P;}
+  P.fig=(svg,show)=>pvFig(svg,{V1:6,p1:300,segs:[{pts:lin([1,200],[4,200])}],fill:[[1,0],[1,200],[4,200],[4,0]],note:show?`A′ = ${fmt(P.ans,4)} ${JJ}`:'A′ = ?'});
+  return P;}
+function pFirst(){const P={cat:'first'};const mode=pick(['p','V','T','Q','gen']);const nu=pick([1,2,3,4,5]),dT=pick([10,20,40,50,100]);
+  if(mode==='p'){const A=nu*RG*dT,dU=1.5*A,Q=2.5*A;P.ans=Q;P.unit=JJ;P.text=L(`${nu} моль одноатомного идеального газа нагревают изобарно на ${dT} К. Какое количество теплоты получил газ?`,`${nu} моль бір атомды идеал газды изобаралық жолмен ${dT} К-ге қыздырады. Газ қандай жылу мөлшерін алды?`);P.given=`ν = ${nu} ${mol}, ΔT = ${dT} ${KK}, p = const, i = 3`;
+    P.steps=[st(L('Работа газа:','Газдың жұмысы:'),`A′ = νRΔT = ${nu} · 8,31 · ${dT} = ${fmt(A,4)} ${JJ}`),st(L('Изменение внутренней энергии:','Ішкі энергияның өзгерісі:'),`ΔU = ${frac(3,2)}νRΔT = ${fmt(dU,4)} ${JJ}`),st(L('Первый закон термодинамики:','Термодинамиканың бірінші заңы:'),`Q = ΔU + A′ = ${fmt(Q,4)} ${JJ}`)];P.trap={v:dU,msg:L('Это только ΔU; при изобарном процессе газ ещё совершает работу.','Бұл тек ΔU; изобаралық процесте газ жұмыс та жасайды.')};P.wr=[dU,A,Q*2];
+    P.fig=(svg,show)=>pvFig(svg,{V1:6,p1:300,segs:[{pts:lin([1.5,200],[4.5,200])}],fill:[[1.5,0],[1.5,200],[4.5,200],[4.5,0]],labels:[{V:1.5,p:200,t:'1'},{V:4.5,p:200,t:'2'}],note:show?`Q = ${fmt(Q,4)} ${JJ}`:'Q = ?',yf:()=>'',xf:()=>''});return P;}
+  if(mode==='V'){const Q=1.5*nu*RG*dT;P.ans=Q;P.unit=JJ;P.text=L(`${nu} моль одноатомного газа в закрытом сосуде нагрели на ${dT} К. Какое количество теплоты сообщили газу?`,`Жабық ыдыстағы ${nu} моль бір атомды газды ${dT} К-ге қыздырды. Газға қандай жылу мөлшері берілді?`);P.given=`ν = ${nu} ${mol}, ΔT = ${dT} ${KK}, V = const`;
+    P.steps=[st(L('Объём не меняется — работа равна нулю:','Көлем өзгермейді — жұмыс нөлге тең:'),`A′ = 0 &nbsp;⇒&nbsp; Q = ΔU`),st(L('Подставляем:','Мәндерді қоямыз:'),`Q = ${frac(3,2)}νRΔT = 1,5 · ${nu} · 8,31 · ${dT} = ${fmt(Q,4)} ${JJ}`)];P.trap={v:2.5*nu*RG*dT,msg:L('При V = const газ не совершает работу: Q = ΔU.','V = const болғанда газ жұмыс жасамайды: Q = ΔU.')};P.wr=[2.5*nu*RG*dT,nu*RG*dT,Q*2];}
+  else if(mode==='T'){const A=pick([200,500,800,1000,1500]);P.ans=A;P.unit=JJ;P.text=L(`При изотермическом расширении газ совершил работу ${A} Дж. Какое количество теплоты он получил?`,`Изотермиялық ұлғаюда газ ${A} Дж жұмыс жасады. Ол қандай жылу мөлшерін алды?`);P.given=`T = const, A′ = ${A} ${JJ}`;
+    P.steps=[st(L('При T = const внутренняя энергия идеального газа не меняется: ΔU = 0.','T = const болғанда идеал газдың ішкі энергиясы өзгермейді: ΔU = 0.'),`Q = ΔU + A′ = 0 + ${A} = ${A} ${JJ}`)];P.trap={v:0,msg:L('ΔU = 0, но Q = A′, а не нуль.','ΔU = 0, бірақ Q = A′, нөл емес.')};P.wr=[0,A*1.5,A/2];}
+  else if(mode==='Q'){const A=pick([200,400,500,800,1000]);P.ans=-A;P.neg=true;P.unit=JJ;P.text=L(`При адиабатном расширении газ совершил работу ${A} Дж. Как изменилась его внутренняя энергия? (укажите ΔU со знаком)`,`Адиабаталық ұлғаюда газ ${A} Дж жұмыс жасады. Оның ішкі энергиясы қалай өзгерді? (ΔU-ны таңбасымен көрсетіңіз)`);P.given=`Q = 0, A′ = ${A} ${JJ}`;
+    P.steps=[st(L('Адиабатный процесс — теплообмена нет: Q = 0.','Адиабаталық процесс — жылу алмасу жоқ: Q = 0.'),`0 = ΔU + A′ &nbsp;⇒&nbsp; ΔU = −A′ = −${A} ${JJ}`),st(L('Вывод:','Қорытынды:'),L('внутренняя энергия уменьшилась — газ охладился','ішкі энергия кеміді — газ суыды'))];P.trap={v:A,msg:L('Газ совершает работу за счёт своей внутренней энергии — ΔU &lt; 0.','Газ ішкі энергиясы есебінен жұмыс жасайды — ΔU &lt; 0.')};P.wr=[A,0,-2*A];}
+  else{const Q=pick([500,800,1000,1500,2000]),A=pick([200,300,400,600]);const dU=Q-A;P.ans=dU;P.neg=true;P.unit=JJ;P.text=L(`Газу передали количество теплоты ${Q} Дж, при этом он совершил работу ${A} Дж. На сколько изменилась внутренняя энергия газа?`,`Газға ${Q} Дж жылу мөлшері берілді, бұл кезде ол ${A} Дж жұмыс жасады. Газдың ішкі энергиясы қаншаға өзгерді?`);P.given=`Q = ${Q} ${JJ}, A′ = ${A} ${JJ}`;
+    P.steps=[st(L('Первый закон термодинамики:','Термодинамиканың бірінші заңы:'),`Q = ΔU + A′ &nbsp;⇒&nbsp; ΔU = Q − A′ = ${Q} − ${A} = ${dU} ${JJ}`)];P.trap={v:Q+A,msg:L('Газ сам совершает работу — она вычитается.','Газдың өзі жұмыс жасайды — ол азайтылады.')};P.wr=[Q+A,Q,A];}
+  P.fig=(svg,show)=>figEngineBox(svg,show,P);
+  return P;}
+function figEngineBox(svg,show,P){svg0(svg,420,300);el('rect',{x:120,y:60,width:160,height:170,fill:'var(--accent-soft)',stroke:'var(--ink)','stroke-width':3},svg);el('rect',{x:120,y:60,width:160,height:16,fill:'var(--muted)'},svg);arr(svg,200,58,200,10,'var(--c4)',3);txt(svg,"A′",210,30,{'font-size':17,'font-style':'italic','font-weight':700,fill:'var(--c4)'});
+  arr(svg,40,180,116,180,'#dc2626',4);txt(svg,'Q',46,168,{'font-size':17,'font-style':'italic','font-weight':700,fill:'#dc2626'});txt(svg,'ΔU',200,160,{'text-anchor':'middle','font-size':18,'font-style':'italic','font-weight':700});txt(svg,show?`${fmt(P.ans,4)} ${P.unit}`:'?',300,280,{'text-anchor':'middle','font-size':17,'font-weight':700,fill:'var(--c2)'});}
+function pEta(){const P={cat:'eta'};const mode=pick(['eta','A','Q2','Q1']);const Q1=pick([100,200,400,500,800,1000]),e=pick([20,25,30,40,50]);const A=Q1*e/100,Q2=Q1-A;
+  const base=L(`Тепловой двигатель за цикл получает от нагревателя ${Q1} кДж теплоты`,`Жылу қозғалтқышы цикл ішінде қыздырғыштан ${Q1} кДж жылу алады`);
+  if(mode==='eta'){P.ans=e;P.unit='%';P.text=base+L(` и отдаёт холодильнику ${fmt(Q2)} кДж. Найдите КПД двигателя.`,` және суытқышқа ${fmt(Q2)} кДж береді. Қозғалтқыштың ПӘК-ін табыңыз.`);P.given=`Q₁ = ${Q1} ${kJ}, Q₂ = ${fmt(Q2)} ${kJ}`;
+    P.steps=[st(L('КПД:','ПӘК:'),`η = ${frac('Q₁ − Q₂','Q₁')} = ${frac(`${Q1} − ${fmt(Q2)}`,Q1)} = ${fmt(e/100)} = ${e} %`)];P.trap={v:Q2/Q1*100,msg:L('η = (Q₁ − Q₂)/Q₁, а не Q₂/Q₁.','η = (Q₁ − Q₂)/Q₁, Q₂/Q₁ емес.')};P.wr=[Q2/Q1*100,100-e/2,e*2];}
+  else if(mode==='A'){P.ans=A;P.unit=kJ;P.text=base+L(`; его КПД ${e} %. Какую работу он совершает за цикл?`,`; оның ПӘК-і ${e} %. Ол цикл ішінде қандай жұмыс жасайды?`);P.given=`Q₁ = ${Q1} ${kJ}, η = ${e} %`;
+    P.steps=[st(L('Из η = A/Q₁:','η = A/Q₁ өрнегінен:'),`A = ηQ₁ = ${fmt(e/100)} · ${Q1} = ${fmt(A)} ${kJ}`)];P.trap={v:Q2,msg:L('Это теплота, отданная холодильнику.','Бұл суытқышқа берілген жылу.')};P.wr=[Q2,Q1*e,Q1/e];}
+  else if(mode==='Q2'){P.ans=Q2;P.unit=kJ;P.text=base+L(` и совершает работу ${fmt(A)} кДж. Какое количество теплоты он отдаёт холодильнику?`,` және ${fmt(A)} кДж жұмыс жасайды. Ол суытқышқа қандай жылу мөлшерін береді?`);P.given=`Q₁ = ${Q1} ${kJ}, A = ${fmt(A)} ${kJ}`;
+    P.steps=[st(L('Закон сохранения энергии для цикла:','Цикл үшін энергияның сақталу заңы:'),`Q₂ = Q₁ − A = ${Q1} − ${fmt(A)} = ${fmt(Q2)} ${kJ}`)];P.trap={v:Q1+A,msg:L('Q₂ = Q₁ − A.','Q₂ = Q₁ − A.')};P.wr=[Q1+A,A,Q1];}
+  else{P.ans=Q1;P.unit=kJ;P.text=L(`КПД теплового двигателя ${e} %, за цикл он совершает работу ${fmt(A)} кДж. Какое количество теплоты двигатель получает от нагревателя за цикл?`,`Жылу қозғалтқышының ПӘК-і ${e} %, цикл ішінде ол ${fmt(A)} кДж жұмыс жасайды. Қозғалтқыш цикл ішінде қыздырғыштан қандай жылу мөлшерін алады?`);P.given=`η = ${e} %, A = ${fmt(A)} ${kJ}`;
+    P.steps=[st(L('Из η = A/Q₁:','η = A/Q₁ өрнегінен:'),`Q₁ = ${frac('A','η')} = ${frac(fmt(A),fmt(e/100))} = ${Q1} ${kJ}`)];P.trap={v:A*e/100,msg:L('Делите работу на КПД (в долях).','Жұмысты ПӘК-ке (үлеспен) бөліңіз.')};P.wr=[A*e/100,A+e,Q2];}
+  P.fig=(svg,show)=>figEngine(svg,{Q1:mode==='Q1'&&!show?'Q₁ = ?':`Q₁ = ${Q1} ${kJ}`,Q2:mode==='Q2'&&!show?'Q₂ = ?':mode==='eta'||mode==='Q2'?`Q₂ = ${fmt(Q2)} ${kJ}`:'Q₂',A:mode==='A'&&!show?'A = ?':mode==='Q2'||mode==='Q1'||show||mode==='A'?`A = ${fmt(A)} ${kJ}`:'A',eta:mode==='eta'?(show?`η = ${e} %`:'η = ?'):`η = ${e} %`});
+  return P;}
+function pCarnot(){const P={cat:'carnot'};const mode=pick(['eta','T1','T2','etaC']);
+  if(mode==='etaC'){const t1=pick([127,227,327,427,527,727]),t2=pick([17,27,37,47,77]);const T1=C2K(t1),T2=C2K(t2),e=(T1-T2)/T1*100;P.ans=e;P.unit='%';P.text=L(`Температура нагревателя идеальной тепловой машины ${t1} °C, холодильника ${t2} °C. Найдите максимальный КПД.`,`Идеал жылу машинасының қыздырғышының температурасы ${t1} °C, суытқыштікі ${t2} °C. Ең үлкен ПӘК-ті табыңыз.`);P.given=`t₁ = ${t1} °C, t₂ = ${t2} °C`;
+    P.steps=[st(L('Переводим в кельвины:','Кельвинге айналдырамыз:'),`T₁ = ${t1} + 273 = ${T1} ${KK}; &nbsp; T₂ = ${t2} + 273 = ${T2} ${KK}`),st(L('КПД цикла Карно:','Карно циклінің ПӘК-і:'),`η = ${frac('T₁ − T₂','T₁')} = ${frac(`${T1} − ${T2}`,T1)} ≈ ${fmt(e,3)} %`)];P.trap={v:(t1-t2)/t1*100,msg:L('Температуры нужно взять в кельвинах.','Температураларды кельвинмен алу керек.')};P.wr=[(t1-t2)/t1*100,T2/T1*100,e/2];
+    P.fig=(svg,show)=>figEngine(svg,{T1:`T₁ = ${T1} K`,T2:`T₂ = ${T2} K`,eta:show?`η ≈ ${fmt(e,3)} %`:'η = ?'});return P;}
+  const T1=pick([400,500,600,800,1000]),e=pick([20,25,30,40,50,60]);const T2=T1*(1-e/100);
+  if(mode==='eta'){P.ans=e;P.unit='%';P.text=L(`Идеальная тепловая машина работает с нагревателем при ${T1} К и холодильником при ${fmt(T2)} К. Найдите её КПД.`,`Идеал жылу машинасы ${T1} К қыздырғышпен және ${fmt(T2)} К суытқышпен жұмыс істейді. Оның ПӘК-ін табыңыз.`);P.given=`T₁ = ${T1} ${KK}, T₂ = ${fmt(T2)} ${KK}`;P.steps=[st(L('КПД идеальной машины (цикл Карно):','Идеал машинаның ПӘК-і (Карно циклі):'),`η = ${frac('T₁ − T₂','T₁')} = ${frac(`${T1} − ${fmt(T2)}`,T1)} = ${e} %`)];P.trap={v:T2/T1*100,msg:L('η = (T₁ − T₂)/T₁.','η = (T₁ − T₂)/T₁.')};P.wr=[T2/T1*100,(T1-T2)/T2*100,e/2];}
+  else if(mode==='T2'){P.ans=T2;P.unit=KK;P.text=L(`КПД идеальной тепловой машины ${e} %, температура нагревателя ${T1} К. Найдите температуру холодильника.`,`Идеал жылу машинасының ПӘК-і ${e} %, қыздырғыштың температурасы ${T1} К. Суытқыштың температурасын табыңыз.`);P.given=`η = ${e} %, T₁ = ${T1} ${KK}`;P.steps=[st(L('Из η = 1 − T₂/T₁:','η = 1 − T₂/T₁ өрнегінен:'),`T₂ = T₁(1 − η) = ${T1} · (1 − ${fmt(e/100)}) = ${fmt(T2)} ${KK}`)];P.trap={v:T1*e/100,msg:L('T₂ = T₁(1 − η).','T₂ = T₁(1 − η).')};P.wr=[T1*e/100,T1-e,T2/2];}
+  else{P.ans=T1;P.unit=KK;P.text=L(`Температура холодильника идеальной тепловой машины ${fmt(T2)} К, КПД ${e} %. Найдите температуру нагревателя.`,`Идеал жылу машинасының суытқышының температурасы ${fmt(T2)} К, ПӘК-і ${e} %. Қыздырғыштың температурасын табыңыз.`);P.given=`T₂ = ${fmt(T2)} ${KK}, η = ${e} %`;P.steps=[st(L('Из η = 1 − T₂/T₁:','η = 1 − T₂/T₁ өрнегінен:'),`T₁ = ${frac('T₂','1 − η')} = ${frac(fmt(T2),fmt(1-e/100))} = ${T1} ${KK}`)];P.trap={v:T2*(1+e/100),msg:L('T₁ = T₂/(1 − η).','T₁ = T₂/(1 − η).')};P.wr=[T2*(1+e/100),T2/(e/100),T1*2];}
+  P.fig=(svg,show)=>figEngine(svg,{T1:mode==='T1'&&!show?'T₁ = ?':`T₁ = ${T1} K`,T2:mode==='T2'&&!show?'T₂ = ?':`T₂ = ${fmt(T2)} K`,eta:mode==='eta'&&!show?'η = ?':`η = ${e} %`});
+  return P;}
+function pFuel(){const P={cat:'fuel'};const f=pick(FUEL().slice(0,3));const mode=pick(['m','eta','N']);
+  if(mode==='m'){const N=pick([20,30,40,50,60,100]),t=pick([1,2,3]),e=pick([25,30,35,40]);const A=N*1000*t*3600,m=A/(e/100*f.q);P.ans=m;P.unit=kgU;P.text=L(`Двигатель мощностью ${N} кВт работает ${t} ч. Его КПД ${e} %. Сколько топлива (${f.n}, q = ${f.qh} Дж/кг) он расходует?`,`Қуаты ${N} кВт қозғалтқыш ${t} сағ жұмыс істейді. Оның ПӘК-і ${e} %. Ол қанша отын (${f.n}, q = ${f.qh} Дж/кг) жұмсайды?`);P.given=`N = ${N} ${kW}, t = ${t} ${L('ч','сағ')} = ${t*3600} ${ss}, η = ${e} %, q = ${f.qh} ${L('Дж/кг','Дж/кг')}`;
+    P.steps=[st(L('Полезная работа:','Пайдалы жұмыс:'),`A = Nt = ${N*1000} · ${t*3600} = ${fmt(A,4)} ${JJ}`),st(L('Затраченная энергия топлива Q = qm, КПД η = A/(qm):','Жұмсалған отын энергиясы Q = qm, ПӘК η = A/(qm):'),`m = ${frac('A','ηq')} = ${frac(fmt(A,4),`${fmt(e/100)} · ${f.qh}`)} ≈ ${fmt(m,4)} ${kgU}`)];P.trap={v:A/f.q,msg:L('Учтите КПД: топлива нужно больше.','ПӘК-ті ескеріңіз: отын көбірек керек.')};P.wr=[A/f.q,m*e/100,m*2];}
+  else if(mode==='eta'){const m=pick([5,10,20]),A=pick([.3,.25,.4])*m*f.q;const e=A/(m*f.q)*100;P.ans=e;P.unit='%';P.text=L(`При сгорании ${m} кг топлива (${f.n}, q = ${f.qh} Дж/кг) двигатель совершил полезную работу ${fmt(A/1e6,4)} МДж. Найдите КПД двигателя.`,`${m} кг отын (${f.n}, q = ${f.qh} Дж/кг) жанғанда қозғалтқыш ${fmt(A/1e6,4)} МДж пайдалы жұмыс жасады. Қозғалтқыштың ПӘК-ін табыңыз.`);P.given=`m = ${m} ${kgU}, q = ${f.qh} ${L('Дж/кг','Дж/кг')}, A = ${fmt(A/1e6,4)} ${MJ}`;
+    P.steps=[st(L('Энергия, выделившаяся при сгорании:','Жанғанда бөлінген энергия:'),`Q = qm = ${f.qh} · ${m} = ${fmt(f.q*m/1e6,4)} ${MJ}`),st(L('КПД:','ПӘК:'),`η = ${frac('A','Q')} = ${frac(fmt(A/1e6,4),fmt(f.q*m/1e6,4))} = ${fmt(e,3)} %`)];P.trap={v:A/f.q*100,msg:L('Q = qm — умножьте на массу топлива.','Q = qm — отын массасына көбейтіңіз.')};P.wr=[100-e,e/2,e*2];}
+  else{const m=pick([2,5,10]),t=pick([1,2]),e=pick([25,30,40]);const N=e/100*f.q*m/(t*3600);P.ans=N/1000;P.unit=kW;P.text=L(`Двигатель с КПД ${e} % за ${t} ч расходует ${m} кг топлива (${f.n}, q = ${f.qh} Дж/кг). Найдите его полезную мощность.`,`ПӘК-і ${e} % қозғалтқыш ${t} сағ ішінде ${m} кг отын (${f.n}, q = ${f.qh} Дж/кг) жұмсайды. Оның пайдалы қуатын табыңыз.`);P.given=`η = ${e} %, t = ${t*3600} ${ss}, m = ${m} ${kgU}`;
+    P.steps=[st(L('Полезная работа:','Пайдалы жұмыс:'),`A = ηqm = ${fmt(e/100)} · ${f.qh} · ${m} = ${fmt(e/100*f.q*m,4)} ${JJ}`),st(L('Мощность:','Қуат:'),`N = ${frac('A','t')} = ${frac(fmt(e/100*f.q*m,4),t*3600)} ≈ ${fmt(N,4)} ${WW} ≈ ${fmt(N/1000,4)} ${kW}`)];P.trap={v:f.q*m/(t*3600)/1000,msg:L('Учтите КПД.','ПӘК-ті ескеріңіз.')};P.wr=[N/1000*3600,N/1e6,N/500];}
+  P.fig=(svg,show)=>figEngine(svg,{T1:'Q = qm',Q1:'Q = qm',A:mode==='N'?(show?`N ≈ ${fmt(P.ans,4)} ${kW}`:'N = ?'):'A',eta:mode==='eta'?(show?`η ≈ ${fmt(P.ans,3)} %`:'η = ?'):'η',Q2:'Q₂'});
+  return P;}
+const PCAT=()=>({U:L('Внутренняя энергия','Ішкі энергия'),work:L('Работа газа','Газдың жұмысы'),first:L('Первый закон термодинамики','Термодинамиканың бірінші заңы'),eta:L('КПД двигателя','Қозғалтқыш ПӘК-і'),carnot:L('Цикл Карно','Карно циклі'),fuel:L('Топливо и мощность','Отын және қуат')});
+const PGEN={U:pU,work:pWork,first:pFirst,eta:pEta,carnot:pCarnot,fuel:pFuel};
+
+/* ================= РЕШАТЕЛЬ ================= */
+let TEACH=false;try{TEACH=localStorage.getItem('thd-solveall')==='1';}catch(e){}
+document.addEventListener('change',e=>{if(e.target.classList&&e.target.classList.contains('teach')){TEACH=e.target.checked;try{localStorage.setItem('thd-solveall',TEACH?'1':'0');}catch(_){}document.querySelectorAll('.teach').forEach(c=>c.checked=TEACH);drawProb();}});
+const uJ=(x,u,d)=>fmt(x,d||3)+(u?(u[0]==='·'?'':' ')+u:'');
+const isOk=(P,v)=>P.abs!=null?Math.abs(v-P.ans)<=P.abs:close(v,P.ans,P.tol||.02);
+function solveUI(root,st,P,redraw,work){
+  const N=P.steps.length,n=TEACH?N:Math.min(st.shown,N),ansOn=TEACH||st.ans||n>=N;
+  const solved=st.tries.some(v=>isOk(P,v));const last=st.tries[st.tries.length-1];
+  const trapHit=last!==undefined&&P.trap&&isFinite(P.trap.v)&&!isOk(P,last)&&(Math.abs(P.trap.v)<1e-9?Math.abs(last)<1e-6:close(last,P.trap.v,.03));
+  root.innerHTML=(work?`<div class="work paper-grid">${L('Место для решения: включите ручку ✎ (справа внизу) и решайте прямо здесь. Затем введите ответ и нажмите «Проверить».','Шешуге арналған орын: қаламды ✎ (оң жақ төменде) қосып, осы жерде шешіңіз. Содан кейін жауапты енгізіп, «Тексеру» батырмасын басыңыз.')}</div>`:'')+
+    (TEACH?'':`<span class="lbl">${L('Ваш ответ','Сіздің жауабыңыз')}</span><div class="pin"><input class="num" inputmode="decimal" placeholder="${P.ph||'?'}" value="${st.raw!==undefined?st.raw:''}" ${solved?'disabled':''}><span class="m">${P.unit}</span><button class="btn go" ${solved?'disabled':''}>${L('Проверить','Тексеру')}</button></div>`+
+    (P.scale&&P.scale!==1?`<p class="muted" style="font-size:.85rem">${L('Введите множитель перед ·10ⁿ или всё число, например 1,5e-7.','·10ⁿ алдындағы көбейткішті немесе бүкіл санды енгізіңіз, мысалы 1,5e-7.')}</p>`:'')+
+    (last===undefined?'':solved?`<p class="fb ok">${L('Верно!','Дұрыс!')} ${st.tries.length===1?L('С первой попытки.','Бірінші әрекеттен.'):''}</p>`:`<p class="fb bad">${trapHit?P.trap.msg:L('Пока неверно. Проверьте вычисления и единицы измерения или откройте подсказку.','Әзірге қате. Есептеулер мен өлшем бірліктерін тексеріңіз немесе кеңесті ашыңыз.')} (${L('попыток','әрекет')}: ${st.tries.length})</p>`))+
+    `<ol class="steps" style="margin-top:12px">${P.steps.slice(0,n).map(s=>`<li><div><span class="why">${s.why}</span><span class="mx">${s.mx}</span></div></li>`).join('')}</ol>`+
+    (ansOn?`<div class="answer" style="margin-top:12px">${L('Ответ','Жауабы')}: ${P.ansH||uJ(P.ans,P.unit)}</div>`:'')+
+    (TEACH?'':`<div class="row" style="margin-top:14px"><button class="btn ghost" data-c="next" ${n>=N?'disabled':''}>${L('Подсказка: следующий шаг','Кеңес: келесі қадам')} (${Math.min(n+1,N)}/${N})</button>${ansOn?'':`<button class="btn ghost" data-c="ans">${L('Показать ответ','Жауапты көрсету')}</button><button class="btn ghost" data-c="all">${L('Всё решение','Толық шешім')}</button>`}${(n>0||st.ans||st.tries.length)?`<button class="btn ghost" data-c="hide">${L('Скрыть и решать заново','Жасырып, қайта шешу')}</button>`:''}</div>`);
+  const inp=root.querySelector('input.num');
+  if(inp){const go=()=>{let v=parseSci(inp.value);if(v===null)return;if(P.scale&&P.scale!==1&&close(v,P.full,.05))v=v/P.scale;st.raw=inp.value;st.tries.push(v);redraw();};root.querySelector('.go').addEventListener('click',go);inp.addEventListener('keydown',e=>{if(e.key==='Enter')go();});}
+  root.querySelectorAll('[data-c]').forEach(b=>b.addEventListener('click',()=>{if(b.disabled)return;const c=b.dataset.c;if(c==='next')st.shown++;else if(c==='ans')st.ans=true;else if(c==='hide'){st.shown=0;st.ans=false;st.tries=[];st.raw='';}else{st.shown=99;st.ans=true;}redraw();}));
+  return ansOn||solved;}
+const PR={cat:'U',seed:1,st:{shown:0,ans:false,tries:[]}};
+function drawProb(){
+  $('#prCat').innerHTML=Object.entries(PCAT()).map(([k,l])=>`<button data-c="${k}" aria-pressed="${k===PR.cat}">${l}</button>`).join('');
+  $('#prConst').innerHTML=[`U = ${frac('i',2)}νRT = ${frac('i',2)}pV &nbsp;(i = 3 ${L('или','немесе')} 5); &nbsp; R = 8,31 ${L('Дж/(моль·К)','Дж/(моль·К)')}`,
+    `A′ = pΔV = νRΔT &nbsp;(p = const); &nbsp; Q = ΔU + A′; &nbsp; T = t + 273`,
+    `η = ${frac('A','Q₁')} = ${frac('Q₁ − Q₂','Q₁')}; &nbsp; η<sub>max</sub> = ${frac('T₁ − T₂','T₁')}; &nbsp; Q = qm; &nbsp; A = Nt`,
+    `q: ${L('бензин, керосин','бензин, керосин')} 4,6·10⁷, ${L('дизельное','дизель')} 4,2·10⁷ ${L('Дж/кг','Дж/кг')}; &nbsp; 1 ${kPa} · 1 ${Lt} = 1 ${JJ}`].map(s=>`<div class="m" style="white-space:normal">${s}</div>`).join('');
+  document.querySelectorAll('.teach').forEach(c=>c.checked=TEACH);
+  const P=withSeed(PR.seed,()=>PGEN[PR.cat]());
+  $('#prCatL').textContent=PCAT()[PR.cat];
+  $('#prText').innerHTML=P.text+`<div style="margin-top:8px;color:var(--muted);font-size:.95rem">${L('Дано','Берілгені')}: <span class="m" style="white-space:normal">${P.given}</span></div>`;
+  const show=solveUI($('#prSolve'),PR.st,P,drawProb,true);P.fig($('#prFig'),show);
+  $('#prFigN').textContent=show?L('Рисунок с ответом.','Жауабы бар сурет.'):L('Неизвестная величина отмечена «?». После решения на рисунке появится ответ.','Белгісіз шама «?» белгісімен көрсетілген. Шешкеннен кейін суретте жауап пайда болады.');}
+$('#prCat').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;PR.cat=b.dataset.c;newProb();});
+$('#prNew').addEventListener('click',()=>newProb());
+function newProb(){PR.seed=newSeed();PR.st={shown:0,ans:false,tries:[]};drawProb();}
+
+/* ================= БАНК ЗАДАНИЙ ================= */
+const CATN=()=>({th:L('Теория','Теория'),gr:L('Диаграммы и рисунки','Диаграммалар мен суреттер'),calc:L('Расчёты','Есептеулер'),eng:L('Тепловые двигатели','Жылу қозғалтқыштары')});
+function mkQ(cat,q,correct,wrongs,ex){const seen=new Set([strip(String(correct))]);const w=[];for(const x of wrongs){const t=strip(String(x));if(!seen.has(t)){seen.add(t);w.push(x);}if(w.length===3)break;}
+  const opts=shuffle([correct,...w]);return{cat:CATN()[cat]||cat,q,opts,ans:opts.indexOf(correct),ex};}
+function qFromP(cat,P){const u=P.unit;const f=x=>M_((Math.abs(x)<1e-9?'0':fmt(x,4))+(u?' '+u:''));const a=P.ans;
+  let wr=(P.wr||[]).filter(x=>isFinite(x)&&(P.neg||x>=0)&&Math.abs(x-a)>Math.abs(a)*.06+1e-9);wr=wr.concat(shuffle([a*2,a/2,a*3,a/3,a*1.5].filter(x=>P.neg||x>=0)),[a+1,a+2,a+4]);
+  const q=mkQ(cat,P.text,f(a),wr.map(f),P.steps.slice(-2).map(s=>M_(s.mx)).join('<br>'));q.cat=CATN()[cat]+' · '+PCAT()[P.cat];q.P=P;q.steps=P.steps;
+  const fs=svgStr({W:560,H:400},s=>P.fig(s,false));q.q=P.text+`<div class="paper-grid" style="max-width:400px;margin-top:10px">${fs}</div>`;return q;}
+const THQ=()=>[
+  [L('От чего зависит внутренняя энергия идеального газа данной массы?','Берілген массадағы идеал газдың ішкі энергиясы неге тәуелді?'),L('только от температуры','тек температураға'),[L('от объёма','көлемге'),L('от давления','қысымға'),L('от формы сосуда','ыдыстың пішініне')],'U = (i/2)νRT'],
+  [L('Первый закон термодинамики:','Термодинамиканың бірінші заңы:'),M_("Q = ΔU + A′"),[M_("Q = ΔU − A′"),M_('Q = A′'),M_('ΔU = Q·A′')],L('Теплота идёт на изменение внутренней энергии и на работу газа.','Жылу ішкі энергияның өзгерісіне және газдың жұмысына жұмсалады.')],
+  [L('В каком процессе всё полученное газом тепло идёт на совершение работы?','Қандай процесте газ алған барлық жылу жұмыс жасауға жұмсалады?'),L('в изотермическом','изотермиялық'),[L('в изохорном','изохоралық'),L('в изобарном','изобаралық'),L('в адиабатном','адиабаталық')],'T = const ⇒ ΔU = 0 ⇒ Q = A′'],
+  [L('В каком процессе газ не совершает работы?','Қандай процесте газ жұмыс жасамайды?'),L('в изохорном','изохоралық'),[L('в изобарном','изобаралық'),L('в изотермическом','изотермиялық'),L('в адиабатном','адиабаталық')],'V = const ⇒ ΔV = 0 ⇒ A′ = 0'],
+  [L('Что происходит с температурой газа при адиабатном расширении?','Адиабаталық ұлғаюда газ температурасы қалай өзгереді?'),L('понижается','төмендейді'),[L('повышается','артады'),L('не меняется','өзгермейді'),L('сначала растёт, затем падает','алдымен артады, сосын төмендейді')],"Q = 0 ⇒ ΔU = −A′ < 0"],
+  [L('Чему численно равна работа газа на p–V диаграмме?','p–V диаграммасында газдың жұмысы сан жағынан неге тең?'),L('площади под графиком процесса','процесс графигінің астындағы ауданға'),[L('длине графика','графиктің ұзындығына'),L('наклону графика','графиктің көлбеулігіне'),L('произведению p₁V₁','p₁V₁ көбейтіндісіне')],''],
+  [L('Второй закон термодинамики (формулировка Клаузиуса):','Термодинамиканың екінші заңы (Клаузиус тұжырымы):'),L('теплота не может самопроизвольно переходить от холодного тела к горячему','жылу суық денеден ыстық денеге өздігінен өте алмайды'),[L('энергия сохраняется','энергия сақталады'),L('Q = ΔU + A′','Q = ΔU + A′'),L('КПД может быть равен 100 %','ПӘК 100 %-ға тең болуы мүмкін')],''],
+  [L('Что такое вечный двигатель первого рода?','Бірінші текті мәңгілік қозғалтқыш дегеніміз не?'),L('машина, совершающая работу без затраты энергии; невозможна по первому закону','энергия жұмсамай жұмыс жасайтын машина; бірінші заң бойынша мүмкін емес'),[L('машина с КПД 100 %, возможна','ПӘК-і 100 % машина, мүмкін'),L('любой тепловой двигатель','кез келген жылу қозғалтқышы'),L('холодильник','тоңазытқыш')],'']];
+const ENGQ=()=>[
+  [L('Основные части теплового двигателя:','Жылу қозғалтқышының негізгі бөліктері:'),L('нагреватель, рабочее тело, холодильник','қыздырғыш, жұмыстық дене, суытқыш'),[L('поршень, цилиндр, свеча','поршень, цилиндр, білте'),L('котёл, турбина, генератор','қазандық, турбина, генератор'),L('топливо, воздух, искра','отын, ауа, ұшқын')],''],
+  [L('Формула КПД теплового двигателя:','Жылу қозғалтқышы ПӘК-інің формуласы:'),M_('η = (Q₁ − Q₂)/Q₁'),[M_('η = Q₂/Q₁'),M_('η = (Q₁ + Q₂)/Q₁'),M_('η = Q₁/A')],''],
+  [L('Почему КПД теплового двигателя всегда меньше 100 %?','Неліктен жылу қозғалтқышының ПӘК-і әрқашан 100 %-дан кем?'),L('часть теплоты обязательно отдаётся холодильнику (второй закон)','жылудың бір бөлігі міндетті түрде суытқышқа беріледі (екінші заң)'),[L('из-за трения в деталях','бөлшектердегі үйкеліс салдарынан'),L('топливо сгорает не полностью','отын толық жанбайды'),L('так решили инженеры','инженерлер солай шешті')],L('Даже идеальная машина Карно имеет η = 1 − T₂/T₁ &lt; 1.','Тіпті идеал Карно машинасының η = 1 − T₂/T₁ &lt; 1.')],
+  [L('Как повысить КПД идеальной тепловой машины?','Идеал жылу машинасының ПӘК-ін қалай арттыруға болады?'),L('повысить T₁ нагревателя или понизить T₂ холодильника','қыздырғыштың T₁-ін арттыру немесе суытқыштың T₂-ін төмендету'),[L('увеличить массу рабочего тела','жұмыстық дененің массасын арттыру'),L('сжечь больше топлива','көбірек отын жағу'),L('уменьшить T₁','T₁-ді азайту')],'η = 1 − T₂/T₁'],
+  [L('В каком такте ДВС газ совершает полезную работу?','ІЖҚ-ның қай тактісінде газ пайдалы жұмыс жасайды?'),L('рабочий ход','жұмыстық жүріс'),[L('впуск','кіріс'),L('сжатие','сығу'),L('выпуск','шығыс')],''],
+  [L('Из каких процессов состоит цикл Карно?','Карно циклі қандай процестерден тұрады?'),L('две изотермы и две адиабаты','екі изотерма және екі адиабата'),[L('две изохоры и две изобары','екі изохора және екі изобара'),L('две изобары и две адиабаты','екі изобара және екі адиабата'),L('четыре изотермы','төрт изотерма')],''],
+  [L('За сколько оборотов коленчатого вала совершается цикл четырёхтактного ДВС?','Төрт тактілі ІЖҚ циклі иінді біліктің неше айналымында орындалады?'),L('за 2 оборота','2 айналымда'),[L('за 1 оборот','1 айналымда'),L('за 4 оборота','4 айналымда'),L('за пол-оборота','жарты айналымда')],L('Каждый такт — пол-оборота вала.','Әр такт — біліктің жарты айналымы.')],
+  [L('Чем дизельный двигатель отличается от бензинового?','Дизельдік қозғалтқыш бензиндіден немен ерекшеленеді?'),L('топливо воспламеняется от сильного сжатия, без свечи','отын қатты сығылудан, білтесіз тұтанады'),[L('у него нет поршня','онда поршень жоқ'),L('он работает без топлива','ол отынсыз жұмыс істейді'),L('у него КПД 100 %','оның ПӘК-і 100 %')],L('Высокая степень сжатия даёт и более высокий КПД.','Жоғары сығу дәрежесі жоғарырақ ПӘК те береді.')]];
+const pickQ=(c,a)=>{const[q,x,w,ex]=pick(a);return mkQ(c,q,x,w,ex);};
+function grPaths(){const a=[1,300],b=[4,100];const fs=svgStr({W:560,H:380},s=>pvFig(s,{V1:5,p1:360,segs:[{pts:lin(a,[4,300]).concat(lin([4,300],b)),col:'var(--c1)',lab:'1',ldx:-14,ldy:-12},{pts:lin(a,b),col:'var(--c2)',lab:'2',ldx:8,ldy:-6},{pts:lin(a,[1,100]).concat(lin([1,100],b)),col:'var(--c4)',lab:'3',ldx:6,ldy:20}],labels:[{V:1,p:300,t:'A'},{V:4,p:100,t:'B'}]}));
+  const k=pick(['max','min','dU']);const q={max:L('Газ переходит из состояния A в состояние B тремя способами. В каком процессе газ совершает наибольшую работу?','Газ A күйінен B күйіне үш тәсілмен өтеді. Қай процесте газ ең үлкен жұмыс жасайды?'),min:L('Газ переходит из состояния A в состояние B тремя способами. В каком процессе газ совершает наименьшую работу?','Газ A күйінен B күйіне үш тәсілмен өтеді. Қай процесте газ ең аз жұмыс жасайды?'),dU:L('Газ переходит из A в B тремя способами. В каком процессе изменение внутренней энергии больше?','Газ A-дан B-ге үш тәсілмен өтеді. Қай процесте ішкі энергияның өзгерісі үлкен?')}[k];
+  const c={max:'1',min:'3',dU:L('одинаково во всех','барлығында бірдей')}[k];return mkQ('gr',q+`<div class="paper-grid" style="max-width:420px;margin-top:10px">${fs}</div>`,c,['1','2','3',L('одинаково во всех','барлығында бірдей')].filter(x=>x!==c),k==='dU'?L('ΔU зависит только от начального и конечного состояний.','ΔU тек бастапқы және соңғы күйлерге тәуелді.'):L('Работа — площадь под графиком: наибольшая у пути 1, наименьшая у пути 3.','Жұмыс — график астындағы аудан: 1-жолда ең үлкен, 3-жолда ең аз.'));}
+function grSign(){const k=pick(['exp','comp','iso']);const pts=k==='exp'?lin([1,200],[4,200]):k==='comp'?lin([4,150],[1,150]):lin([2.5,80],[2.5,280]);const fs=svgStr({W:560,H:360},s=>pvFig(s,{V1:5,p1:320,segs:[{pts}]}));
+  const c={exp:L('положительна','оң'),comp:L('отрицательна','теріс'),iso:L('равна нулю','нөлге тең')}[k];return mkQ('gr',L('Каков знак работы газа в процессе, изображённом на графике?','Графикте бейнеленген процесте газ жұмысының таңбасы қандай?')+`<div class="paper-grid" style="max-width:420px;margin-top:10px">${fs}</div>`,c,[L('положительна','оң'),L('отрицательна','теріс'),L('равна нулю','нөлге тең'),L('нельзя определить','анықтау мүмкін емес')].filter(x=>x!==c),L('Расширение — A′ &gt; 0, сжатие — A′ &lt; 0, V = const — A′ = 0.','Ұлғаю — A′ &gt; 0, сығылу — A′ &lt; 0, V = const — A′ = 0.'));}
+function grStroke(){const ph=pick([0,1,2,3]);const fs=svgStr({W:300,H:440},s=>figICE(s,{th:ph*180+90,eps:8,W:300,H:440}));const nm=[L('впуск','кіріс'),L('сжатие','сығу'),L('рабочий ход','жұмыстық жүріс'),L('выпуск','шығыс')];
+  return mkQ('gr',L('Какой такт двигателя изображён на рисунке? (стрелка — направление движения поршня)','Суретте қозғалтқыштың қай тактісі бейнеленген? (нұсқар — поршень қозғалысының бағыты)')+`<div class="paper-grid" style="max-width:260px;margin-top:10px">${fs}</div>`,nm[ph],nm.filter((x,i)=>i!==ph),L('Впуск — открыт впускной клапан, поршень вниз; сжатие — клапаны закрыты, поршень вверх; рабочий ход — после вспышки, поршень вниз; выпуск — открыт выпускной клапан, поршень вверх.','Кіріс — кіріс клапаны ашық, поршень төмен; сығу — клапандар жабық, поршень жоғары; жұмыстық жүріс — тұтанғаннан кейін, поршень төмен; шығыс — шығыс клапаны ашық, поршень жоғары.'));}
+const GEN={th:()=>pickQ('th',THQ()),gr:()=>pick([grPaths,grSign,grStroke])(),calc:()=>qFromP('calc',PGEN[pick(['U','work','first','first'])]()),eng:()=>rnd()<.45?pickQ('eng',ENGQ()):qFromP('eng',PGEN[pick(['eta','carnot','fuel'])]())};
+const build=rec=>withSeed(rec.seed,()=>GEN[rec.cat==='all'?pick(Object.keys(GEN)):rec.cat]());
+/* ================= ТРЕНАЖЁР И ТЕСТ ================= */
+const LET='АБВГ';
+function renderQ(box,q,chosen,{onAnswer,nextLabel,onNext}){
+  box.innerHTML=`<div class="qcard"><div class="qcat">${q.cat}</div><div class="qtext">${q.q}</div><div class="opts">${q.opts.map((o,i)=>`<button class="opt" data-o="${i}"><span class="k">${LET[i]}</span><span>${o}</span></button>`).join('')}</div><div class="fb"></div></div>`;
+  const btns=[...box.querySelectorAll('.opt')];
+  const showFb=(i,focus)=>{const ok=i===q.ans;btns.forEach(x=>{x.disabled=true;});btns[q.ans].classList.add('right');if(!ok)btns[i].classList.add('wrong');
+    const fb=box.querySelector('.fb');fb.innerHTML=`<div class="expl ${ok?'ok':'no'}"><b>${ok?L('Верно!','Дұрыс!'):L('Неверно. Правильный ответ: ','Қате. Дұрыс жауап: ')+LET[q.ans]}</b>${q.ex}</div>`;
+    const nb=document.createElement('button');nb.className='btn';nb.textContent=nextLabel();nb.style.marginTop='14px';nb.addEventListener('click',onNext);fb.appendChild(nb);if(focus)nb.focus({preventScroll:true});};
+  if(chosen!=null)showFb(chosen,false);
+  btns.forEach(b=>b.addEventListener('click',()=>{const i=+b.dataset.o;showFb(i,true);onAnswer(i===q.ans,i);}));}
+const T={cat:'all',done:0,ok:0,streak:0,best:0,rec:null,chosen:null};
+try{T.best=+localStorage.getItem('thd-best')||0;}catch(e){}
+function renderTrCat(){const C_=[['all',L('Все темы','Барлық тақырыптар')],...Object.entries(CATN())];$('#trCat').innerHTML=C_.map(([k,l])=>`<button data-c="${k}" aria-pressed="${k===T.cat}">${l}</button>`).join('');}
+$('#trCat').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;T.cat=b.dataset.c;[...$('#trCat').children].forEach(x=>x.setAttribute('aria-pressed',x===b));nextTrain();});
+function stats(){$('#sDone').textContent=T.done;$('#sOk').textContent=T.ok;$('#sStreak').textContent=T.streak;$('#sBest').textContent=T.best;}
+function drawTrain(){renderQ($('#trBox'),build(T.rec),T.chosen,{nextLabel:()=>L('Следующее задание','Келесі тапсырма'),onNext:nextTrain,onAnswer:(ok,i)=>{T.chosen=i;T.done++;if(ok){T.ok++;T.streak++;if(T.streak>T.best){T.best=T.streak;try{localStorage.setItem('thd-best',T.best);}catch(e){}}}else T.streak=0;stats();}});}
+function nextTrain(){T.rec={cat:T.cat,seed:newSeed()};T.chosen=null;drawTrain();}
+const TT={phase:'intro',recs:[],i:0,ok:0,chosen:[]};
+function drawTest(){if(TT.phase==='intro')testIntro();else if(TT.phase==='q')testStep();else testEnd();}
+function testIntro(){let best=null;try{best=localStorage.getItem('thd-test');}catch(e){}
+  $('#testBox').innerHTML=`<div class="qcard"><h2>${L('Итоговый тест','Қорытынды тест')}</h2><p>${L('10 заданий: внутренняя энергия, работа газа, первый и второй законы термодинамики, p–V диаграммы, тепловые двигатели, КПД и цикл Карно. После каждого ответа — разбор, в конце — итог и список ошибок.','10 тапсырма: ішкі энергия, газ жұмысы, термодинамиканың бірінші және екінші заңдары, p–V диаграммалары, жылу қозғалтқыштары, ПӘК және Карно циклі. Әр жауаптан кейін талдау, соңында қорытынды және қателер тізімі.')}</p>
+    ${best!==null?`<p class="stat">${L('Ваш лучший результат','Ең жақсы нәтижеңіз')}: <b>${best} / 10</b></p>`:''}<button class="btn" id="tStart">${L('Начать тест','Тестті бастау')}</button></div>`;
+  $('#tStart').addEventListener('click',startTest);}
+function startTest(){TT.recs=shuffle(['th','th','gr','gr','calc','calc','calc','eng','eng','eng']).map(c=>({cat:c,seed:newSeed()}));TT.i=0;TT.ok=0;TT.chosen=[];TT.phase='q';testStep();}
+function testStep(){const q=build(TT.recs[TT.i]),box=$('#testBox'),ch=TT.chosen[TT.i];
+  box.innerHTML=`<div class="row" style="margin-bottom:10px"><span class="stat">${L('Задание','Тапсырма')} <b>${TT.i+1}</b> / 10</span><span class="stat">${L('Верно','Дұрыс')}: <b id="tOk">${TT.ok}</b></span></div><div class="progress" style="margin-bottom:16px"><i style="width:${(TT.i+(ch!=null?1:0))*10}%"></i></div><div id="tQ"></div>`;
+  renderQ($('#tQ'),q,ch,{nextLabel:()=>TT.i<9?L('Дальше','Әрі қарай'):L('Показать результат','Нәтижені көрсету'),onNext:()=>{TT.i++;if(TT.i<10)testStep();else{TT.phase='end';testEnd();}},
+    onAnswer:(ok,i)=>{TT.chosen[TT.i]=i;if(ok)TT.ok++;box.querySelector('.progress i').style.width=(TT.i+1)*10+'%';$('#tOk').textContent=TT.ok;}});}
+function testEnd(){const s=TT.ok;const msg=s>=9?L('Отлично! Тема усвоена.','Өте жақсы! Тақырып меңгерілді.'):s>=7?L('Хорошо. Повторите задания, где были ошибки.','Жақсы. Қате жіберген тапсырмаларды қайталаңыз.'):s>=5?L('Неплохо, но стоит потренироваться ещё.','Жаман емес, бірақ тағы жаттығу керек.'):L('Вернитесь к теории и моделям, затем потренируйтесь ещё.','Теория мен модельдерге қайта оралып, сосын тағы жаттығыңыз.');
+  try{const prev=localStorage.getItem('thd-test');if(prev===null||s>+prev)localStorage.setItem('thd-test',s);}catch(e){}
+  const wrong=TT.recs.map((r,i)=>({q:build(r),c:TT.chosen[i]})).filter(x=>x.c!==x.q.ans);
+  $('#testBox').innerHTML=`<div class="qcard"><div class="qcat">${L('Результат','Нәтиже')}</div><div class="score">${s} <span style="font-size:1.4rem;color:var(--muted)">/ 10</span></div><p>${msg}</p>
+    ${wrong.length?`<h3>${L('Разбор ошибок','Қателерді талдау')}</h3><div class="review">${wrong.map(({q,c})=>`<div><span class="qcat">${q.cat}</span><span>${q.q}</span><span class="bad-a">${L('Ваш ответ','Сіздің жауабыңыз')}: ${c!=null?q.opts[c]:'—'}</span><span>${L('Правильный ответ','Дұрыс жауап')}: ${q.opts[q.ans]}</span><span style="color:var(--muted)">${q.ex}</span></div>`).join('')}</div>`:''}
+    <div class="row"><button class="btn" id="tAgain">${L('Пройти ещё раз','Қайта тапсыру')}</button><button class="btn ghost" id="tTrain">${L('Перейти в тренажёр','Жаттықтырғышқа өту')}</button></div></div>`;
+  $('#tAgain').addEventListener('click',startTest);$('#tTrain').addEventListener('click',()=>showTab('train'));}
+
+/* ================= переключатели ================= */
+function renderAll(){applyUI();renderTheory();cyControls();cyDraw();icControls();icDraw();drawProb();renderTrCat();stats();drawTrain();drawTest();}
+$('#langSw').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.lang===LANG)return;LANG=b.dataset.lang;try{localStorage.setItem('thd-lang',LANG);}catch(e){}renderAll();});
+function setSize(px){document.documentElement.style.fontSize=px+'px';[...$('#sizeSw').children].forEach(b=>b.setAttribute('aria-pressed',+b.dataset.sz===px));}
+$('#sizeSw').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const px=+b.dataset.sz;setSize(px);try{localStorage.setItem('thd-size',px);}catch(e){}});
+(function(){let px=22;try{const v=+localStorage.getItem('thd-size');if([16,22,28].includes(v))px=v;}catch(e){}setSize(px);})();
+const mq=matchMedia('(prefers-color-scheme: dark)');
+function syncTheme(){const t=document.documentElement.dataset.theme||(mq.matches?'dark':'light');[...$('#themeSw').children].forEach(b=>b.setAttribute('aria-pressed',b.dataset.th===t));}
+$('#themeSw').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;document.documentElement.dataset.theme=b.dataset.th;try{localStorage.setItem('thd-theme',b.dataset.th);}catch(e){}syncTheme();});
+try{const t=localStorage.getItem('thd-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;}catch(e){}
+mq.addEventListener('change',syncTheme);new MutationObserver(syncTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+PR.seed=newSeed();T.rec={cat:'all',seed:newSeed()};
+renderAll();syncTheme();
+(function(){const h=location.hash.slice(1);let t=TABS.includes(h)?h:null;if(!t){try{const s=localStorage.getItem('thd-tab');if(TABS.includes(s))t=s;}catch(e){}}showTab(t||'theory');})();
+
+</script>
+<style>
+#penCv{position:fixed;inset:0;width:100vw;height:100vh;z-index:900;pointer-events:none;touch-action:auto}
+#penCv.on{pointer-events:auto;touch-action:none;cursor:crosshair}
+#penCv.on.er{cursor:cell}
+#penCv.on.ln{cursor:copy}
+#penBar{position:fixed;right:18px;bottom:18px;z-index:901;display:flex;align-items:center;gap:6px;padding:8px;border-radius:40px;background:var(--surface);border:1px solid var(--line);box-shadow:0 6px 24px rgba(10,20,50,.18);font-family:'PT Sans',Arial,sans-serif}
+#penBar button{all:unset;box-sizing:border-box;width:54px;height:54px;border-radius:50%;display:grid;place-items:center;cursor:pointer;color:var(--ink);transition:background .15s}
+#penBar button:hover{background:var(--accent-soft)}
+#penBar button[aria-pressed="true"]{background:var(--accent-soft);box-shadow:inset 0 0 0 3px var(--accent)}
+#penBar button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+#penBar svg{width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#penBar .sw{width:30px;height:30px;border-radius:50%;border:2px solid rgba(0,0,0,.15)}
+#penBar .wd{background:var(--ink);border-radius:50%}
+#penBar .sep{width:1px;height:36px;background:var(--line);margin:0 4px}
+#penBar .tools{display:none;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+#penBar.open .tools{display:flex}
+#penMain{background:var(--accent)!important;color:#fff!important;width:62px!important;height:62px!important}
+#penBar.open #penMain{background:var(--c2,#c2410c)!important}
+@media (max-width:900px){#penBar{max-width:calc(100vw - 36px);border-radius:24px}#penBar button{width:46px;height:46px}}
+</style>
+<canvas id="penCv"></canvas>
+<div id="penBar">
+  <div class="tools">
+    <button data-pc="ink" class="pc"><span class="sw"></span></button>
+    <button data-pc="red" class="pc"><span class="sw"></span></button>
+    <button data-pc="blue" class="pc"><span class="sw"></span></button>
+    <button data-pc="green" class="pc"><span class="sw"></span></button>
+    <button data-pc="orange" class="pc"><span class="sw"></span></button>
+    <button data-pc="violet" class="pc"><span class="sw"></span></button>
+    <span class="sep"></span>
+    <button data-pw="3" class="pw"><span class="wd" style="width:6px;height:6px"></span></button>
+    <button data-pw="6" class="pw"><span class="wd" style="width:11px;height:11px"></span></button>
+    <button data-pw="12" class="pw"><span class="wd" style="width:18px;height:18px"></span></button>
+    <span class="sep"></span>
+    <button id="penCirc"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 12h8"/></svg></button>
+    <button id="penLine"><svg viewBox="0 0 24 24"><path d="M4 20 20 4"/><circle cx="4" cy="20" r="1.8" fill="currentColor"/><circle cx="20" cy="4" r="1.8" fill="currentColor"/></svg></button>
+    <button id="penEr"><svg viewBox="0 0 24 24"><path d="M7 21h12"/><path d="M5.5 15.5 14 7l5 5-8.5 8.5H7.5z"/><path d="M9.5 11.5l5 5"/></svg></button>
+    <button id="penUndo"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+    <button id="penClr"><svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg></button>
+    <span class="sep"></span>
+  </div>
+  <button id="penMain" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M15 4l5 5L9 20H4v-5z"/><path d="M13 6l5 5"/></svg></button>
+</div>
+<script>
+(function(){
+  const cv=document.getElementById('penCv'),bar=document.getElementById('penBar'),ctx=cv.getContext('2d');
+  const LNG=()=>(typeof LANG!=='undefined'&&LANG==='kz')?1:0;
+  const TIP={penMain:['Ручка: рисовать на экране (Esc — выключить)','Қалам: экранға жазу (Esc — өшіру)'],penEr:['Ластик','Өшіргіш'],penLine:['Прямая линия (линейка): потяните от начала к концу','Түзу сызық (сызғыш): басынан соңына дейін тартыңыз'],penCirc:['Окружность (циркуль): нажмите в центре и потяните до нужного радиуса','Шеңбер (циркуль): центрін басып, қажетті радиусқа дейін тартыңыз'],penUndo:['Отменить последнее','Соңғысын болдырмау'],penClr:['Стереть всё на этой вкладке','Осы беттегінің бәрін өшіру'],
+    ink:['Чёрный','Қара'],red:['Красный','Қызыл'],blue:['Синий','Көк'],green:['Зелёный','Жасыл'],orange:['Оранжевый','Қызғылт сары'],violet:['Фиолетовый','Күлгін'],w3:['Тонкая линия','Жіңішке сызық'],w6:['Средняя линия','Орташа сызық'],w12:['Толстая линия','Жуан сызық']};
+  const COL={ink:['#1c2746','#f1f4fb'],red:['#dc2626','#ff6b6b'],blue:['#2563eb','#7aa2ff'],green:['#15803d','#4ade80'],orange:['#ea580c','#fb923c'],violet:['#7c3aed','#c4a5ff']};
+  const mqD=matchMedia('(prefers-color-scheme: dark)');
+  const dark=()=>{const t=document.documentElement.dataset.theme;return t?t==='dark':mqD.matches;};
+  const st={on:false,color:'red',w:6,er:false,tool:null,pages:{},cleared:{},cur:null};
+  const key=()=>{const t=document.querySelector('[role="tab"][aria-selected="true"]');return t?(t.id||t.dataset.tab||t.textContent):'main';};
+  const list=()=>st.pages[key()]||(st.pages[key()]=[]);
+  let dpr=1;
+  function size(){dpr=Math.min(window.devicePixelRatio||1,2);cv.width=Math.round(innerWidth*dpr);cv.height=Math.round(innerHeight*dpr);redraw();}
+  function stroke(s){if(s.p.length===0)return;ctx.save();ctx.globalCompositeOperation=s.er?'destination-out':'source-over';
+    ctx.strokeStyle=s.er?'#000':COL[s.c][dark()?1:0];ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=s.w;ctx.lineCap='round';ctx.lineJoin='round';
+    const ox=scrollX,oy=scrollY,p=s.p;
+    if(s.ci){const r=p.length>1?Math.hypot(p[1][0]-p[0][0],p[1][1]-p[0][1]):0;ctx.beginPath();ctx.arc(p[0][0]-ox,p[0][1]-oy,Math.max(r,1),0,2*Math.PI);ctx.stroke();ctx.beginPath();ctx.arc(p[0][0]-ox,p[0][1]-oy,Math.max(2,s.w/2),0,7);ctx.fill();
+      if(s===st.cur&&p.length>1){ctx.setLineDash([6,6]);ctx.lineWidth=Math.max(1.5,s.w/3);ctx.beginPath();ctx.moveTo(p[0][0]-ox,p[0][1]-oy);ctx.lineTo(p[1][0]-ox,p[1][1]-oy);ctx.stroke();}ctx.restore();return;}
+    if(p.length===1){ctx.beginPath();ctx.arc(p[0][0]-ox,p[0][1]-oy,s.w/2,0,7);ctx.fill();}
+    else{ctx.beginPath();ctx.moveTo(p[0][0]-ox,p[0][1]-oy);for(let i=1;i<p.length-1;i++){const mx=(p[i][0]+p[i+1][0])/2,my=(p[i][1]+p[i+1][1])/2;ctx.quadraticCurveTo(p[i][0]-ox,p[i][1]-oy,mx-ox,my-oy);}
+      const l=p[p.length-1];ctx.lineTo(l[0]-ox,l[1]-oy);ctx.stroke();}
+    ctx.restore();}
+  function redraw(){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,innerWidth,innerHeight);list().forEach(stroke);if(st.cur)stroke(st.cur);}
+  function tips(){const l=LNG();bar.querySelectorAll('button').forEach(b=>{const k=b.id||(b.dataset.pc)||('w'+b.dataset.pw);const t=TIP[k];if(t){b.title=t[l];b.setAttribute('aria-label',t[l]);}});}
+  function ui(){bar.classList.toggle('open',st.on);cv.classList.toggle('on',st.on);cv.classList.toggle('er',st.er);
+    document.getElementById('penMain').setAttribute('aria-pressed',st.on);
+    bar.querySelectorAll('.pc').forEach(b=>{b.setAttribute('aria-pressed',!st.er&&b.dataset.pc===st.color);b.firstElementChild.style.background=COL[b.dataset.pc][dark()?1:0];});
+    bar.querySelectorAll('.pw').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.pw===st.w));
+    document.getElementById('penEr').setAttribute('aria-pressed',st.er);document.getElementById('penLine').setAttribute('aria-pressed',st.tool==='line'&&!st.er);document.getElementById('penCirc').setAttribute('aria-pressed',st.tool==='circ'&&!st.er);cv.classList.toggle('ln',!!st.tool&&!st.er);tips();}
+  bar.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    if(b.id==='penMain'){st.on=!st.on;}
+    else if(b.dataset.pc){st.color=b.dataset.pc;st.er=false;}
+    else if(b.dataset.pw){st.w=+b.dataset.pw;}
+    else if(b.id==='penEr'){st.er=!st.er;}
+    else if(b.id==='penLine'){st.tool=(st.tool==='line'&&!st.er)?null:'line';st.er=false;}
+    else if(b.id==='penCirc'){st.tool=(st.tool==='circ'&&!st.er)?null:'circ';st.er=false;}
+    else if(b.id==='penUndo'){const L_=list();if(L_.length)L_.pop();else if(st.cleared[key()]){st.pages[key()]=st.cleared[key()];delete st.cleared[key()];}redraw();}
+    else if(b.id==='penClr'){if(list().length){st.cleared[key()]=list();st.pages[key()]=[];}redraw();}
+    ui();});
+  function pt(e){return[e.clientX+scrollX,e.clientY+scrollY];}
+  cv.addEventListener('pointerdown',e=>{if(!st.on)return;e.preventDefault();try{cv.setPointerCapture(e.pointerId);}catch(_){}
+    const er=st.er||e.button===5||(e.buttons&32);
+    st.cur={c:st.color,w:er?Math.max(30,st.w*4):st.w,er,ln:st.tool==='line'&&!er,ci:st.tool==='circ'&&!er,p:[pt(e)]};delete st.cleared[key()];redraw();});
+  cv.addEventListener('pointermove',e=>{if(!st.cur)return;if(st.cur.ci){st.cur.p=[st.cur.p[0],pt(e)];redraw();return;}if(st.cur.ln){const a=st.cur.p[0];let[b0,b1]=pt(e);const dx=b0-a[0],dy=b1-a[1],L=Math.hypot(dx,dy);if(L>0){const ang=Math.atan2(dy,dx),sn=Math.round(ang/(Math.PI/4))*(Math.PI/4);if(Math.abs(ang-sn)<0.07){b0=a[0]+L*Math.cos(sn);b1=a[1]+L*Math.sin(sn);}}st.cur.p=[a,[b0,b1]];redraw();return;}const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];(evs.length?evs:[e]).forEach(ev=>st.cur.p.push(pt(ev)));redraw();});
+  const end=()=>{if(!st.cur)return;list().push(st.cur);st.cur=null;redraw();};
+  cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);cv.addEventListener('lostpointercapture',end);
+  addEventListener('scroll',redraw,{passive:true});addEventListener('resize',size);
+  addEventListener('keydown',e=>{if(e.key==='Escape'&&st.on){st.on=false;ui();}});
+  new MutationObserver(()=>{redraw();ui();}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme','lang']});
+  mqD.addEventListener('change',()=>{redraw();ui();});
+  document.querySelectorAll('[role="tab"]').forEach(t=>new MutationObserver(redraw).observe(t,{attributes:true,attributeFilter:['aria-selected']}));
+  document.addEventListener('click',e=>{if(e.target.closest('#langSw,[data-lang]'))setTimeout(tips,0);});
+  size();ui();
+})();
+</script>
+<!--cards-begin-->
+<script>window.CARDS_DATA=[{"t":"order","title":["Такты четырёхтактного ДВС","Төрт тактілі ІЖҚ тактілері"],"items":[["впуск: открыт впускной клапан, поршень идёт вниз","кіріс: кіріс клапаны ашық, поршень төмен жүреді"],["сжатие: клапаны закрыты, смесь сжимается","сығу: клапандар жабық, қоспа сығылады"],["рабочий ход: искра, газы толкают поршень","жұмыс жүрісі: ұшқын, газдар поршеньді итереді"],["выпуск: открыт выпускной клапан, газы выходят","шығару: шығыс клапаны ашық, газдар шығады"]]},{"t":"order","title":["Цикл Карно (начиная с точки 1)","Карно циклі (1-нүктеден бастап)"],"items":[["изотермическое расширение при T₁ (газ получает Q₁)","T₁ кезінде изотермиялық ұлғаю (газ Q₁ алады)"],["адиабатное расширение (газ охлаждается до T₂)","адиабаталық ұлғаю (газ T₂-ге дейін суиды)"],["изотермическое сжатие при T₂ (газ отдаёт Q₂)","T₂ кезінде изотермиялық сығылу (газ Q₂ береді)"],["адиабатное сжатие (газ нагревается до T₁)","адиабаталық сығылу (газ T₁-ге дейін қызады)"]]},{"t":"match","title":["Процесс → первый закон термодинамики","Процесс → термодинамиканың бірінші заңы"],"pairs":[[["изохорный","изохоралық"],"Q = ΔU"],[["изобарный","изобаралық"],"Q = ΔU + pΔV"],[["изотермический","изотермиялық"],"Q = A′"],[["адиабатный","адиабаталық"],"A′ = −ΔU"],[["замкнутый цикл","тұйық цикл"],"Q₁ − Q₂ = A"]]},{"t":"match","title":["Двигатель → КПД","Қозғалтқыш → ПӘК"],"pairs":[[["паровая машина","бу машинасы"],"8–15 %"],[["карбюраторный ДВС","карбюраторлы ІЖҚ"],"25–30 %"],[["дизель","дизель"],"35–45 %"],[["идеальный цикл Карно 800 К / 300 К","800 К / 300 К Карно циклі"],"62,5 %"]]},{"t":"match","lay":"h","title":["График процесса → что происходит с газом","Процесс графигі → газбен не болады"],"pairs":[["<svg class=\"ckfig\" viewBox=\"0 0 200 145\" role=\"img\" aria-label=\"p-V\"><line x1=\"28\" y1=\"128\" x2=\"184.3\" y2=\"128\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M192 128L181.0 132.9L181.0 123.0Z\" fill=\"var(--muted)\"/><line x1=\"28\" y1=\"128\" x2=\"28\" y2=\"15.7\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M28 8L33.0 19.0L23.1 19.0Z\" fill=\"var(--muted)\"/><text x=\"36\" y=\"20\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">p</text><text x=\"184\" y=\"120\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">V</text><text x=\"14\" y=\"140\" font-size=\"12\" font-family=\"PT Serif, Georgia, serif\" font-style=\"normal\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">0</text><path d=\"M95.0 108.0L95.0 34.0\" fill=\"none\" stroke=\"var(--c1)\" stroke-width=\"3.5\"  stroke-linejoin=\"round\"/><line x1=\"95\" y1=\"80\" x2=\"95\" y2=\"57.7\" stroke=\"var(--c1)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M95 50L100.0 61.0L90.0 61.0Z\" fill=\"var(--c1)\"/><circle cx=\"95\" cy=\"108\" r=\"4\" fill=\"var(--ink)\"/><circle cx=\"95\" cy=\"34\" r=\"4\" fill=\"var(--ink)\"/><text x=\"101\" y=\"112\" font-size=\"13\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"start\">1</text><text x=\"101\" y=\"38\" font-size=\"13\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"start\">2</text></svg>",["изохорное нагревание: Q = ΔU > 0","изохоралық қыздыру: Q = ΔU > 0"]],["<svg class=\"ckfig\" viewBox=\"0 0 200 145\" role=\"img\" aria-label=\"p-V\"><line x1=\"28\" y1=\"128\" x2=\"184.3\" y2=\"128\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M192 128L181.0 132.9L181.0 123.0Z\" fill=\"var(--muted)\"/><line x1=\"28\" y1=\"128\" x2=\"28\" y2=\"15.7\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M28 8L33.0 19.0L23.1 19.0Z\" fill=\"var(--muted)\"/><text x=\"36\" y=\"20\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">p</text><text x=\"184\" y=\"120\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">V</text><text x=\"14\" y=\"140\" font-size=\"12\" font-family=\"PT Serif, Georgia, serif\" font-style=\"normal\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">0</text><path d=\"M50.0 62.0L165.0 62.0\" fill=\"none\" stroke=\"var(--c1)\" stroke-width=\"3.5\"  stroke-linejoin=\"round\"/><line x1=\"100\" y1=\"62\" x2=\"117.3\" y2=\"62\" stroke=\"var(--c1)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M125 62L114.0 67.0L114.0 57.0Z\" fill=\"var(--c1)\"/><circle cx=\"50\" cy=\"62\" r=\"4\" fill=\"var(--ink)\"/><circle cx=\"165\" cy=\"62\" r=\"4\" fill=\"var(--ink)\"/><text x=\"46\" y=\"54\" font-size=\"13\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"start\">1</text><text x=\"161\" y=\"54\" font-size=\"13\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"start\">2</text></svg>",["изобарное расширение: Q = ΔU + A′, газ получает теплоту","изобаралық ұлғаю: Q = ΔU + A′, газ жылу алады"]],["<svg class=\"ckfig\" viewBox=\"0 0 200 145\" role=\"img\" aria-label=\"p-V\"><line x1=\"28\" y1=\"128\" x2=\"184.3\" y2=\"128\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M192 128L181.0 132.9L181.0 123.0Z\" fill=\"var(--muted)\"/><line x1=\"28\" y1=\"128\" x2=\"28\" y2=\"15.7\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M28 8L33.0 19.0L23.1 19.0Z\" fill=\"var(--muted)\"/><text x=\"36\" y=\"20\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">p</text><text x=\"184\" y=\"120\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">V</text><text x=\"14\" y=\"140\" font-size=\"12\" font-family=\"PT Serif, Georgia, serif\" font-style=\"normal\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">0</text><path d=\"M50.0 62.0L165.0 62.0\" fill=\"none\" stroke=\"var(--c1)\" stroke-width=\"3.5\"  stroke-linejoin=\"round\"/><line x1=\"118\" y1=\"62\" x2=\"99.7\" y2=\"62\" stroke=\"var(--c1)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M92 62L103.0 57.0L103.0 67.0Z\" fill=\"var(--c1)\"/><circle cx=\"50\" cy=\"62\" r=\"4\" fill=\"var(--ink)\"/><circle cx=\"165\" cy=\"62\" r=\"4\" fill=\"var(--ink)\"/><text x=\"161\" y=\"54\" font-size=\"13\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"start\">1</text><text x=\"46\" y=\"54\" font-size=\"13\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"start\">2</text></svg>",["изобарное сжатие: газ отдаёт теплоту, A′ < 0","изобаралық сығылу: газ жылу береді, A′ < 0"]],["<svg class=\"ckfig\" viewBox=\"0 0 200 145\" role=\"img\" aria-label=\"p-V\"><line x1=\"28\" y1=\"128\" x2=\"184.3\" y2=\"128\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M192 128L181.0 132.9L181.0 123.0Z\" fill=\"var(--muted)\"/><line x1=\"28\" y1=\"128\" x2=\"28\" y2=\"15.7\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M28 8L33.0 19.0L23.1 19.0Z\" fill=\"var(--muted)\"/><text x=\"36\" y=\"20\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">p</text><text x=\"184\" y=\"120\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">V</text><text x=\"14\" y=\"140\" font-size=\"12\" font-family=\"PT Serif, Georgia, serif\" font-style=\"normal\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">0</text><path d=\"M45.0 37.1L49.5 48.0L54.0 56.6L58.5 63.5L63.0 69.2L67.5 73.9L72.0 78.0L76.5 81.5L81.0 84.5L85.5 87.2L90.0 89.5L94.5 91.6L99.0 93.5L103.5 95.2L108.0 96.8L112.5 98.1L117.0 99.4L121.5 100.6L126.0 101.7L130.5 102.7L135.0 103.6L139.5 104.5L144.0 105.3L148.5 106.0L153.0 106.7L157.5 107.4L162.0 108.0L166.5 108.6L171.0 109.1L175.5 109.7L180.0 110.1\" fill=\"none\" stroke=\"var(--c1)\" stroke-width=\"3.5\"  stroke-linejoin=\"round\"/><line x1=\"88\" y1=\"88.52631578947368\" x2=\"100.87852406332333\" y2=\"93.82176153919545\" stroke=\"var(--c1)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M108 96.75L95.9 97.1L99.7 88.0Z\" fill=\"var(--c1)\"/><circle cx=\"45\" cy=\"37.1\" r=\"4\" fill=\"var(--ink)\"/><circle cx=\"180\" cy=\"110.1\" r=\"4\" fill=\"var(--ink)\"/></svg>",["изотермическое расширение: ΔU = 0, Q = A′","изотермиялық ұлғаю: ΔU = 0, Q = A′"]],["<svg class=\"ckfig\" viewBox=\"0 0 200 145\" role=\"img\" aria-label=\"p-V\"><line x1=\"28\" y1=\"128\" x2=\"184.3\" y2=\"128\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M192 128L181.0 132.9L181.0 123.0Z\" fill=\"var(--muted)\"/><line x1=\"28\" y1=\"128\" x2=\"28\" y2=\"15.7\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M28 8L33.0 19.0L23.1 19.0Z\" fill=\"var(--muted)\"/><text x=\"36\" y=\"20\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">p</text><text x=\"184\" y=\"120\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">V</text><text x=\"14\" y=\"140\" font-size=\"12\" font-family=\"PT Serif, Georgia, serif\" font-style=\"normal\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">0</text><path d=\"M45.0 37.1L49.5 48.0L54.0 56.6L58.5 63.5L63.0 69.2L67.5 73.9L72.0 78.0L76.5 81.5L81.0 84.5L85.5 87.2L90.0 89.5L94.5 91.6L99.0 93.5L103.5 95.2L108.0 96.8L112.5 98.1L117.0 99.4L121.5 100.6L126.0 101.7L130.5 102.7L135.0 103.6L139.5 104.5L144.0 105.3L148.5 106.0L153.0 106.7L157.5 107.4L162.0 108.0L166.5 108.6L171.0 109.1L175.5 109.7L180.0 110.1\" fill=\"none\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-dasharray=\"5 4\" stroke-linejoin=\"round\"/><path d=\"M45.0 37.1L49.3 53.4L53.7 65.4L58.0 74.6L62.3 81.7L66.7 87.5L71.0 92.1L75.3 96.0L79.7 99.2L84.0 101.9L88.3 104.2L92.7 106.2L97.0 108.0L101.3 109.5L105.7 110.9L110.0 112.1L114.3 113.1L118.7 114.1L123.0 114.9L127.3 115.7L131.7 116.4L136.0 117.1L140.3 117.7L144.7 118.2L149.0 118.7L153.3 119.1L157.7 119.6L162.0 119.9L166.3 120.3L170.7 120.6L175.0 120.9\" fill=\"none\" stroke=\"var(--c2)\" stroke-width=\"3.5\"  stroke-linejoin=\"round\"/><line x1=\"70\" y1=\"91.1239131672609\" x2=\"77.90004822342325\" y2=\"97.20958684231718\" stroke=\"var(--c2)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M84 101.90858549345958L72.3 99.1L78.3 91.3Z\" fill=\"var(--c2)\"/><text x=\"152\" y=\"100.57142857142857\" font-size=\"12\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">T</text></svg>",["адиабатное расширение: Q = 0, газ охлаждается","адиабаталық ұлғаю: Q = 0, газ суиды"]],["<svg class=\"ckfig\" viewBox=\"0 0 200 145\" role=\"img\" aria-label=\"p-V\"><line x1=\"28\" y1=\"128\" x2=\"184.3\" y2=\"128\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M192 128L181.0 132.9L181.0 123.0Z\" fill=\"var(--muted)\"/><line x1=\"28\" y1=\"128\" x2=\"28\" y2=\"15.7\" stroke=\"var(--muted)\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M28 8L33.0 19.0L23.1 19.0Z\" fill=\"var(--muted)\"/><text x=\"36\" y=\"20\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">p</text><text x=\"184\" y=\"120\" font-size=\"15\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">V</text><text x=\"14\" y=\"140\" font-size=\"12\" font-family=\"PT Serif, Georgia, serif\" font-style=\"normal\" font-weight=\"400\" fill=\"var(--muted)\" text-anchor=\"start\">0</text><path d=\"M55.0 105.0L55.0 40.0L160.0 40.0L160.0 105.0L55.0 105.0\" fill=\"none\" stroke=\"var(--c1)\" stroke-width=\"3.5\"  stroke-linejoin=\"round\"/><line x1=\"100\" y1=\"40\" x2=\"112.3\" y2=\"40\" stroke=\"var(--c1)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M120 40L109.0 45.0L109.0 35.0Z\" fill=\"var(--c1)\"/><line x1=\"160\" y1=\"70\" x2=\"160\" y2=\"77.3\" stroke=\"var(--c1)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M160 85L155.1 74.0L164.9 74.0Z\" fill=\"var(--c1)\"/><rect x=\"55\" y=\"40\" width=\"105\" height=\"65\" fill=\"var(--c1)\" fill-opacity=\".15\"/></svg>",["цикл по часовой стрелке: A = площадь цикла > 0","сағат тілімен цикл: A = цикл ауданы > 0"]]]},{"t":"match","lay":"h","title":["Рисунок → такт двигателя","Сурет → қозғалтқыш тактісі"],"pairs":[["<svg class=\"ckfig\" viewBox=\"0 0 150 190\" role=\"img\" aria-label=\"engine\"><rect x=\"40\" y=\"40\" width=\"70\" height=\"78\" fill=\"#86efac\" fill-opacity=\".7\"/><path d=\"M35 180V35H115V180\" fill=\"none\" stroke=\"var(--ink)\" stroke-width=\"3.5\"/><rect x=\"40\" y=\"118\" width=\"70\" height=\"24\" fill=\"var(--muted)\" stroke=\"var(--ink)\" stroke-width=\"2\"/><line x1=\"75\" y1=\"142\" x2=\"65\" y2=\"190\" stroke=\"var(--ink)\" stroke-width=\"4\" stroke-linecap=\"round\"/><rect x=\"46\" y=\"28\" width=\"20\" height=\"6\" fill=\"var(--c4)\"/><line x1=\"56\" y1=\"0\" x2=\"56\" y2=\"28\" stroke=\"var(--ink)\" stroke-width=\"2.5\"/><rect x=\"84\" y=\"18\" width=\"20\" height=\"6\" fill=\"var(--muted)\"/><line x1=\"94\" y1=\"0\" x2=\"94\" y2=\"18\" stroke=\"var(--ink)\" stroke-width=\"2.5\"/><line x1=\"16\" y1=\"10\" x2=\"42.555277784863584\" y2=\"36.555277784863584\" stroke=\"var(--c4)\" stroke-width=\"3\" stroke-linecap=\"round\"/><path d=\"M48 42L36.7 37.7L43.7 30.7Z\" fill=\"var(--c4)\"/><line x1=\"132\" y1=\"72\" x2=\"132\" y2=\"104.3\" stroke=\"var(--c1)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M132 112L127.0 101.0L136.9 101.0Z\" fill=\"var(--c1)\"/></svg>",["впуск: открыт впускной клапан, поршень идёт вниз","кіріс: кіріс клапаны ашық, поршень төмен жүреді"]],["<svg class=\"ckfig\" viewBox=\"0 0 150 190\" role=\"img\" aria-label=\"engine\"><rect x=\"40\" y=\"40\" width=\"70\" height=\"18\" fill=\"#fde68a\" fill-opacity=\".7\"/><path d=\"M35 180V35H115V180\" fill=\"none\" stroke=\"var(--ink)\" stroke-width=\"3.5\"/><rect x=\"40\" y=\"58\" width=\"70\" height=\"24\" fill=\"var(--muted)\" stroke=\"var(--ink)\" stroke-width=\"2\"/><line x1=\"75\" y1=\"82\" x2=\"85\" y2=\"190\" stroke=\"var(--ink)\" stroke-width=\"4\" stroke-linecap=\"round\"/><rect x=\"46\" y=\"18\" width=\"20\" height=\"6\" fill=\"var(--muted)\"/><line x1=\"56\" y1=\"0\" x2=\"56\" y2=\"18\" stroke=\"var(--ink)\" stroke-width=\"2.5\"/><rect x=\"84\" y=\"18\" width=\"20\" height=\"6\" fill=\"var(--muted)\"/><line x1=\"94\" y1=\"0\" x2=\"94\" y2=\"18\" stroke=\"var(--ink)\" stroke-width=\"2.5\"/><line x1=\"132\" y1=\"112\" x2=\"132\" y2=\"79.7\" stroke=\"var(--c1)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M132 72L136.9 83.0L127.0 83.0Z\" fill=\"var(--c1)\"/></svg>",["сжатие: клапаны закрыты, поршень идёт вверх","сығу: клапандар жабық, поршень жоғары жүреді"]],["<svg class=\"ckfig\" viewBox=\"0 0 150 190\" role=\"img\" aria-label=\"engine\"><rect x=\"40\" y=\"40\" width=\"70\" height=\"78\" fill=\"#f87171\" fill-opacity=\".7\"/><path d=\"M35 180V35H115V180\" fill=\"none\" stroke=\"var(--ink)\" stroke-width=\"3.5\"/><rect x=\"40\" y=\"118\" width=\"70\" height=\"24\" fill=\"var(--muted)\" stroke=\"var(--ink)\" stroke-width=\"2\"/><line x1=\"75\" y1=\"142\" x2=\"65\" y2=\"190\" stroke=\"var(--ink)\" stroke-width=\"4\" stroke-linecap=\"round\"/><rect x=\"46\" y=\"18\" width=\"20\" height=\"6\" fill=\"var(--muted)\"/><line x1=\"56\" y1=\"0\" x2=\"56\" y2=\"18\" stroke=\"var(--ink)\" stroke-width=\"2.5\"/><rect x=\"84\" y=\"18\" width=\"20\" height=\"6\" fill=\"var(--muted)\"/><line x1=\"94\" y1=\"0\" x2=\"94\" y2=\"18\" stroke=\"var(--ink)\" stroke-width=\"2.5\"/><line x1=\"75\" y1=\"48\" x2=\"86.0\" y2=\"48.0\" stroke=\"#f59e0b\" stroke-width=\"2.5\"/><line x1=\"75\" y1=\"48\" x2=\"80.5\" y2=\"57.5\" stroke=\"#f59e0b\" stroke-width=\"2.5\"/><line x1=\"75\" y1=\"48\" x2=\"69.5\" y2=\"57.5\" stroke=\"#f59e0b\" stroke-width=\"2.5\"/><line x1=\"75\" y1=\"48\" x2=\"64.0\" y2=\"48.0\" stroke=\"#f59e0b\" stroke-width=\"2.5\"/><line x1=\"75\" y1=\"48\" x2=\"69.5\" y2=\"38.5\" stroke=\"#f59e0b\" stroke-width=\"2.5\"/><line x1=\"75\" y1=\"48\" x2=\"80.5\" y2=\"38.5\" stroke=\"#f59e0b\" stroke-width=\"2.5\"/><line x1=\"132\" y1=\"72\" x2=\"132\" y2=\"104.3\" stroke=\"var(--c1)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M132 112L127.0 101.0L136.9 101.0Z\" fill=\"var(--c1)\"/></svg>",["рабочий ход: искра, газы толкают поршень вниз","жұмыс жүрісі: ұшқын, газдар поршеньді төмен итереді"]],["<svg class=\"ckfig\" viewBox=\"0 0 150 190\" role=\"img\" aria-label=\"engine\"><rect x=\"40\" y=\"40\" width=\"70\" height=\"18\" fill=\"#9ca3af\" fill-opacity=\".7\"/><path d=\"M35 180V35H115V180\" fill=\"none\" stroke=\"var(--ink)\" stroke-width=\"3.5\"/><rect x=\"40\" y=\"58\" width=\"70\" height=\"24\" fill=\"var(--muted)\" stroke=\"var(--ink)\" stroke-width=\"2\"/><line x1=\"75\" y1=\"82\" x2=\"85\" y2=\"190\" stroke=\"var(--ink)\" stroke-width=\"4\" stroke-linecap=\"round\"/><rect x=\"46\" y=\"18\" width=\"20\" height=\"6\" fill=\"var(--muted)\"/><line x1=\"56\" y1=\"0\" x2=\"56\" y2=\"18\" stroke=\"var(--ink)\" stroke-width=\"2.5\"/><rect x=\"84\" y=\"28\" width=\"20\" height=\"6\" fill=\"var(--c2)\"/><line x1=\"94\" y1=\"0\" x2=\"94\" y2=\"28\" stroke=\"var(--ink)\" stroke-width=\"2.5\"/><line x1=\"102\" y1=\"42\" x2=\"128.5552777848636\" y2=\"15.444722215136416\" stroke=\"#6b7280\" stroke-width=\"3\" stroke-linecap=\"round\"/><path d=\"M134 10L129.7 21.3L122.7 14.3Z\" fill=\"#6b7280\"/><line x1=\"132\" y1=\"112\" x2=\"132\" y2=\"79.7\" stroke=\"var(--c1)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M132 72L136.9 83.0L127.0 83.0Z\" fill=\"var(--c1)\"/></svg>",["выпуск: открыт выпускной клапан, газы выходят","шығару: шығыс клапаны ашық, газдар шығады"]]]},{"t":"match","lay":"h","title":["Энергетическая схема → устройство или процесс","Энергетикалық сұлба → құрылғы немесе процесс"],"pairs":[["<svg class=\"ckfig\" viewBox=\"0 0 220 190\" role=\"img\" aria-label=\"scheme\"><rect x=\"60\" y=\"6\" width=\"100\" height=\"34\" rx=\"8\" fill=\"#dc2626\" fill-opacity=\".2\" stroke=\"#dc2626\" stroke-width=\"2\"/><text x=\"110\" y=\"30\" font-size=\"18\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"middle\">T₁</text><circle cx=\"110\" cy=\"95\" r=\"26\" fill=\"var(--accent-soft)\" stroke=\"var(--c1)\" stroke-width=\"2\"/><rect x=\"60\" y=\"150\" width=\"100\" height=\"34\" rx=\"8\" fill=\"#2563eb\" fill-opacity=\".2\" stroke=\"#2563eb\" stroke-width=\"2\"/><text x=\"110\" y=\"174\" font-size=\"18\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"middle\">T₂</text><line x1=\"110\" y1=\"42\" x2=\"110\" y2=\"59.3\" stroke=\"#dc2626\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M110 67L105.0 56.0L115.0 56.0Z\" fill=\"#dc2626\"/><text x=\"118\" y=\"60\" font-size=\"17\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"#dc2626\" text-anchor=\"start\">Q₁</text><line x1=\"110\" y1=\"123\" x2=\"110\" y2=\"140.3\" stroke=\"#2563eb\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M110 148L105.0 137.0L115.0 137.0Z\" fill=\"#2563eb\"/><text x=\"118\" y=\"142\" font-size=\"17\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"#2563eb\" text-anchor=\"start\">Q₂</text><line x1=\"138\" y1=\"95\" x2=\"192.3\" y2=\"95\" stroke=\"var(--c4)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M200 95L189.0 100.0L189.0 90.0Z\" fill=\"var(--c4)\"/><text x=\"160\" y=\"86\" font-size=\"17\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--c4)\" text-anchor=\"start\">A</text></svg>",["тепловой двигатель: A = Q₁ − Q₂","жылу қозғалтқышы: A = Q₁ − Q₂"]],["<svg class=\"ckfig\" viewBox=\"0 0 220 190\" role=\"img\" aria-label=\"scheme\"><rect x=\"60\" y=\"6\" width=\"100\" height=\"34\" rx=\"8\" fill=\"#dc2626\" fill-opacity=\".2\" stroke=\"#dc2626\" stroke-width=\"2\"/><text x=\"110\" y=\"30\" font-size=\"18\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"middle\">T₁</text><circle cx=\"110\" cy=\"95\" r=\"26\" fill=\"var(--accent-soft)\" stroke=\"var(--c1)\" stroke-width=\"2\"/><rect x=\"60\" y=\"150\" width=\"100\" height=\"34\" rx=\"8\" fill=\"#2563eb\" fill-opacity=\".2\" stroke=\"#2563eb\" stroke-width=\"2\"/><text x=\"110\" y=\"174\" font-size=\"18\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"middle\">T₂</text><line x1=\"110\" y1=\"67\" x2=\"110\" y2=\"49.7\" stroke=\"#dc2626\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M110 42L115.0 53.0L105.0 53.0Z\" fill=\"#dc2626\"/><text x=\"118\" y=\"60\" font-size=\"17\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"#dc2626\" text-anchor=\"start\">Q₁</text><line x1=\"110\" y1=\"148\" x2=\"110\" y2=\"130.7\" stroke=\"#2563eb\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M110 123L115.0 134.0L105.0 134.0Z\" fill=\"#2563eb\"/><text x=\"118\" y=\"142\" font-size=\"17\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"#2563eb\" text-anchor=\"start\">Q₂</text><line x1=\"200\" y1=\"95\" x2=\"145.7\" y2=\"95\" stroke=\"var(--c4)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M138 95L149.0 90.0L149.0 100.0Z\" fill=\"var(--c4)\"/><text x=\"170\" y=\"86\" font-size=\"17\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--c4)\" text-anchor=\"start\">A</text></svg>",["холодильная машина: работа переносит теплоту от холодного к горячему","тоңазытқыш машина: жұмыс жылуды суықтан ыстыққа тасымалдайды"]],["<svg class=\"ckfig\" viewBox=\"0 0 220 190\" role=\"img\" aria-label=\"scheme\"><rect x=\"60\" y=\"6\" width=\"100\" height=\"34\" rx=\"8\" fill=\"#dc2626\" fill-opacity=\".2\" stroke=\"#dc2626\" stroke-width=\"2\"/><text x=\"110\" y=\"30\" font-size=\"18\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"middle\">T₁</text><circle cx=\"110\" cy=\"95\" r=\"26\" fill=\"var(--accent-soft)\" stroke=\"var(--c1)\" stroke-width=\"2\"/><line x1=\"110\" y1=\"42\" x2=\"110\" y2=\"59.3\" stroke=\"#dc2626\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M110 67L105.0 56.0L115.0 56.0Z\" fill=\"#dc2626\"/><text x=\"118\" y=\"60\" font-size=\"17\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"#dc2626\" text-anchor=\"start\">Q₁</text><line x1=\"138\" y1=\"95\" x2=\"192.3\" y2=\"95\" stroke=\"var(--c4)\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M200 95L189.0 100.0L189.0 90.0Z\" fill=\"var(--c4)\"/><text x=\"150\" y=\"86\" font-size=\"16\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--c4)\" text-anchor=\"start\">A = Q₁</text><rect x=\"60\" y=\"150\" width=\"100\" height=\"34\" rx=\"8\" fill=\"none\" stroke=\"var(--muted)\" stroke-dasharray=\"5 4\"/><path d=\"M70 156L150 178M150 156L70 178\" stroke=\"var(--bad)\" stroke-width=\"3\"/></svg>",["вечный двигатель II рода — невозможен","II текті мәңгілік қозғалтқыш — мүмкін емес"]],["<svg class=\"ckfig\" viewBox=\"0 0 220 190\" role=\"img\" aria-label=\"scheme\"><rect x=\"60\" y=\"6\" width=\"100\" height=\"34\" rx=\"8\" fill=\"#dc2626\" fill-opacity=\".2\" stroke=\"#dc2626\" stroke-width=\"2\"/><text x=\"110\" y=\"30\" font-size=\"18\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"middle\">T₁</text><rect x=\"60\" y=\"150\" width=\"100\" height=\"34\" rx=\"8\" fill=\"#2563eb\" fill-opacity=\".2\" stroke=\"#2563eb\" stroke-width=\"2\"/><text x=\"110\" y=\"174\" font-size=\"18\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"var(--ink)\" text-anchor=\"middle\">T₂</text><line x1=\"110\" y1=\"42\" x2=\"110\" y2=\"140.3\" stroke=\"#dc2626\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M110 148L105.0 137.0L115.0 137.0Z\" fill=\"#dc2626\"/><text x=\"118\" y=\"100\" font-size=\"17\" font-family=\"PT Serif, Georgia, serif\" font-style=\"italic\" font-weight=\"700\" fill=\"#dc2626\" text-anchor=\"start\">Q</text></svg>",["теплопередача: от горячего тела к холодному","жылу беру: ыстық денеден суық денеге"]]]}];</script>
+<style id="cards-css">
+.ck-top{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.ck-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px;max-width:1500px}
+.ck-hint{color:var(--muted);font-size:.92rem;line-height:1.5}
+.ck-list{display:flex;flex-direction:column;gap:10px;list-style:none;margin:0;padding:0}
+.ck-it{display:flex;align-items:center;gap:12px;min-height:3em;padding:10px 14px;border:2px solid var(--line);border-radius:12px;background:var(--paper);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;line-height:1.45;font-size:1.02rem;position:relative}
+.ck-it .ck-n{flex:none;width:2em;height:2em;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-weight:700;font-family:var(--f-mono,monospace);font-size:.85rem}
+.ck-it .ck-h{flex:none;margin-left:auto;color:var(--muted);font-size:1.3rem;line-height:1}
+.ck-it.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.ck-it.drag{opacity:.35}
+.ck-it.ok{border-color:var(--ok);background:var(--ok-soft)}
+.ck-it.no{border-color:var(--bad);background:var(--bad-soft)}
+.ck-ghost{position:fixed;z-index:950;pointer-events:none;opacity:.92;box-shadow:0 10px 30px rgba(10,20,50,.3);transform:rotate(-1.5deg);cursor:grabbing}
+.ck-mgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:800px){.ck-mgrid{grid-template-columns:1fr}}
+.ck-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:10px;align-items:stretch}
+.ck-term{display:flex;align-items:center;padding:10px 14px;border-radius:12px;background:var(--accent-soft);font-weight:700;line-height:1.45;min-height:3em}
+.ck-slot{min-height:3.2em;border:2px dashed var(--line);border-radius:12px;padding:4px;display:flex;align-items:stretch}
+.ck-slot.ov,.ck-pool.ov{border-color:var(--accent);background:var(--accent-soft)}
+.ck-slot>.ck-it{flex:1;margin:0}
+.ck-slot.ok{border-style:solid;border-color:var(--ok)}.ck-slot.no{border-style:solid;border-color:var(--bad)}
+.ck-pool{display:flex;flex-direction:column;gap:10px;min-height:5em;border:2px dashed transparent;border-radius:12px;padding:4px}
+.ck-pt{font-size:.8rem;font-weight:700;color:var(--muted)}
+.ck-btns{display:flex;flex-wrap:wrap;gap:10px}
+.ckfig{display:block;width:100%;max-width:240px;height:auto;margin:0 auto}
+.ck-it .ckfig{max-width:170px;pointer-events:none}
+.ck-term:has(.ckfig){background:var(--surface);border:1px solid var(--line);justify-content:center;padding:6px}
+.ck-hgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:stretch}
+.ck-col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.ck-col .ck-term{flex:1;justify-content:center;padding:6px}
+.ck-col .ck-slot{min-height:5.2em}
+.ck-col .ck-slot>.ck-it,.ck-pool.h>.ck-it{font-size:.9rem;padding:8px 10px;gap:8px}
+.ck-pool.h{flex-direction:row;flex-wrap:wrap;margin-top:6px;border-color:var(--line);min-height:4em}
+.ck-pool.h>.ck-it{flex:1 1 210px;max-width:340px}
+.ck-col .ckfig{max-width:210px}
+.ck-fb{font-weight:700;border-radius:10px;padding:10px 14px}
+.ck-fb.ok{background:var(--ok-soft);color:var(--ok)}.ck-fb.no{background:var(--bad-soft);color:var(--bad)}
+</style>
+<script id="cards-js">
+(function(){
+  const DATA=window.CARDS_DATA||[];if(!DATA.length)return;
+  const lang=()=>(typeof LANG!=='undefined'&&LANG==='kz')?1:0;
+  const T=v=>Array.isArray(v)?v[lang()]:v;
+  const U=k=>({tab:['Карточки','Карточкалар'],ord:['Порядок','Реттілік'],mat:['Соответствие','Сәйкестік'],
+    oh:['Перетащите карточки так, чтобы они стояли в правильном порядке (сверху вниз). Можно и без перетаскивания: нажмите на одну карточку, затем на другую — они поменяются местами.','Карточкаларды дұрыс ретпен (жоғарыдан төмен) орналастырыңыз. Сүйремей-ақ болады: бір карточканы, сосын екіншісін басыңыз — олар орын ауыстырады.'],
+    mh:['Перетащите карточку справа в пустую ячейку напротив подходящего понятия. Можно и нажатием: выберите карточку, затем ячейку.','Оң жақтағы карточканы сәйкес ұғымның қарсысындағы бос ұяшыққа сүйреңіз. Басу арқылы да болады: карточканы, сосын ұяшықты таңдаңыз.'],
+    mhh:['Перетащите подпись снизу в ячейку под подходящим рисунком. Можно и нажатием: выберите подпись, затем ячейку.','Төмендегі жазуды сәйкес суреттің астындағы ұяшыққа сүйреңіз. Басу арқылы да болады: жазуды, сосын ұяшықты таңдаңыз.'],pool:['Карточки','Карточкалар'],check:['Проверить','Тексеру'],show:['Показать ответ','Жауапты көрсету'],mix:['Перемешать','Араластыру'],
+    all:['Всё верно! Молодцы!','Бәрі дұрыс! Жарайсыңдар!'],part:['Верно: ','Дұрыс: '],fill:['Заполните все ячейки.','Барлық ұяшықты толтырыңыз.']}[k][lang()]);
+  const $=s=>document.querySelector(s);
+  const nav=document.querySelector('nav.tabs'),main=document.querySelector('main');if(!nav||!main)return;
+  const tb=document.createElement('button');tb.setAttribute('role','tab');tb.id='t-cards';tb.dataset.tab='cards';tb.setAttribute('aria-selected','false');
+  const testTab=nav.querySelector('#t-test');nav.insertBefore(tb,testTab||null);
+  const pane=document.createElement('div');pane.id='p-cards';pane.className='pane';pane.hidden=true;main.appendChild(pane);
+  const show=on=>{if(on){main.querySelectorAll(':scope > [id^="p-"]').forEach(p=>{if(p!==pane)p.hidden=true;});nav.querySelectorAll('[role=tab]').forEach(b=>b.setAttribute('aria-selected',b===tb));}pane.hidden=!on;if(!on)tb.setAttribute('aria-selected','false');};
+  nav.addEventListener('click',e=>{const b=e.target.closest('[role=tab]');if(!b)return;show(b===tb);});
+  let cur=0;const st={};
+  const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+  function state(i){const d=DATA[i];if(st[i])return st[i];const n=d.t==='order'?d.items.length:d.pairs.length;let p;do{p=shuffle([...Array(n).keys()]);}while(n>1&&p.every((v,k)=>v===k));
+    return st[i]=d.t==='order'?{ord:p}:{slot:Array(n).fill(-1),pool:p};}
+  function render(){tb.textContent=U('tab');let no=0,nm=0;
+    pane.innerHTML=`<div class="ck-top">${DATA.map((d,i)=>`<button class="${''}" data-ck="${i}" aria-pressed="${i===cur}">${d.t==='order'?U('ord')+' '+(++no):U('mat')+' '+(++nm)}</button>`).join('')}</div><div class="ck-card" id="ckBox"></div>`;
+    pane.querySelector('.ck-top').classList.add('seg');pane.querySelectorAll('[data-ck]').forEach(b=>b.addEventListener('click',()=>{cur=+b.dataset.ck;render();}));draw();}
+  function btns(){return `<div class="ck-btns"><button class="btn" data-a="check">${U('check')}</button><button class="btn ghost" data-a="show">${U('show')}</button><button class="btn ghost" data-a="mix">${U('mix')}</button></div><div id="ckFb"></div>`;}
+  const item=(html,i,num)=>`<div class="ck-it" data-i="${i}">${num!=null?`<span class="ck-n">${num}</span>`:''}<span>${html}</span><span class="ck-h">⠿</span></div>`;
+  function draw(){const d=DATA[cur],s=state(cur),box=$('#ckBox');
+    if(d.t==='order'){box.innerHTML=`<h3>${T(d.title)}</h3><p class="ck-hint">${T(d.hint)||U('oh')}</p><div class="ck-list" id="ckL">${s.ord.map((k,j)=>item(T(d.items[k]),k,j+1)).join('')}</div>${btns()}`;}
+    else if(d.lay==='h'){box.innerHTML=`<h3>${T(d.title)}</h3><p class="ck-hint">${T(d.hint)||U('mhh')}</p><div class="ck-hgrid">${d.pairs.map((p,k)=>`<div class="ck-col"><div class="ck-term">${T(p[0])}</div><div class="ck-slot" data-s="${k}">${s.slot[k]>=0?item(T(d.pairs[s.slot[k]][1]),s.slot[k]):''}</div></div>`).join('')}</div><div class="ck-pt">${U('pool')}</div><div class="ck-pool h" id="ckP">${s.pool.map(k=>item(T(d.pairs[k][1]),k)).join('')}</div>${btns()}`;}
+    else{box.innerHTML=`<h3>${T(d.title)}</h3><p class="ck-hint">${T(d.hint)||U('mh')}</p><div class="ck-mgrid"><div style="display:flex;flex-direction:column;gap:10px">${d.pairs.map((p,k)=>`<div class="ck-row"><div class="ck-term">${T(p[0])}</div><div class="ck-slot" data-s="${k}">${s.slot[k]>=0?item(T(d.pairs[s.slot[k]][1]),s.slot[k]):''}</div></div>`).join('')}</div><div><div class="ck-pt">${U('pool')}</div><div class="ck-pool" id="ckP">${s.pool.map(k=>item(T(d.pairs[k][1]),k)).join('')}</div></div></div>${btns()}`;}
+    box.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>act(b.dataset.a)));bind();}
+  function readState(){const d=DATA[cur],s=state(cur);if(d.t==='order'){s.ord=[...$('#ckL').children].map(e=>+e.dataset.i);}else{s.slot=[...pane.querySelectorAll('.ck-slot')].map(sl=>{const c=sl.querySelector('.ck-it');return c?+c.dataset.i:-1;});s.pool=[...$('#ckP').children].map(e=>+e.dataset.i);}}
+  function act(a){const d=DATA[cur],s=state(cur),n=d.t==='order'?d.items.length:d.pairs.length;
+    if(a==='mix'){delete st[cur];draw();return;}
+    if(a==='show'){if(d.t==='order')s.ord=[...Array(n).keys()];else{s.slot=[...Array(n).keys()];s.pool=[];}draw();act('check');return;}
+    readState();let ok=0;
+    if(d.t==='order'){[...$('#ckL').children].forEach((e,j)=>{const g=+e.dataset.i===j;ok+=g;e.classList.toggle('ok',g);e.classList.toggle('no',!g);e.querySelector('.ck-n').textContent=j+1;});}
+    else{if(s.slot.some(v=>v<0)){$('#ckFb').innerHTML=`<div class="ck-fb no">${U('fill')}</div>`;return;}pane.querySelectorAll('.ck-slot').forEach((sl,k)=>{const g=s.slot[k]===k;ok+=g;sl.classList.toggle('ok',g);sl.classList.toggle('no',!g);const c=sl.querySelector('.ck-it');c.classList.toggle('ok',g);c.classList.toggle('no',!g);});}
+    $('#ckFb').innerHTML=ok===n?`<div class="ck-fb ok">${U('all')}</div>`:`<div class="ck-fb no">${U('part')}${ok} / ${n}</div>`;}
+  function clearMarks(){pane.querySelectorAll('.ok,.no').forEach(e=>e.classList.remove('ok','no'));const f=$('#ckFb');if(f)f.innerHTML='';}
+  let sel=null;
+  function bind(){sel=null;pane.querySelectorAll('#ckBox .ck-it').forEach(c=>c.addEventListener('pointerdown',down));
+    pane.querySelectorAll('.ck-slot,#ckP').forEach(z=>z.addEventListener('click',e=>{if(!sel||e.target.closest('.ck-it'))return;place(sel,z);sel.classList.remove('sel');sel=null;}));}
+  function renum(){const l=$('#ckL');if(l)[...l.children].forEach((e,j)=>{const n=e.querySelector('.ck-n');if(n)n.textContent=j+1;});}
+  function place(card,zone){const from=card.parentNode;if(zone===from)return;if(zone.classList.contains('ck-slot')){const old=zone.querySelector('.ck-it');if(old&&old!==card){if(from.classList.contains('ck-slot'))from.appendChild(old);else $('#ckP').appendChild(old);}}zone.appendChild(card);clearMarks();readState();}
+  function swap(a,b){const pa=a.parentNode,pb=b.parentNode,na=a.nextSibling===b?a:a.nextSibling;pb.insertBefore(a,b);pa.insertBefore(b,na);}
+  function down(e){if(e.button>0)return;const card=e.currentTarget;e.preventDefault();const sx=e.clientX,sy=e.clientY;let ghost=null,moved=false;const r=card.getBoundingClientRect();const ox=sx-r.left,oy=sy-r.top;const isOrd=!!card.closest('#ckL');let over=null;
+    const mv=ev=>{if(!moved&&Math.hypot(ev.clientX-sx,ev.clientY-sy)<7)return;
+      if(!moved){moved=true;ghost=card.cloneNode(true);ghost.classList.add('ck-ghost');ghost.classList.remove('sel');ghost.style.width=r.width+'px';document.body.appendChild(ghost);card.classList.add('drag');}
+      ghost.style.left=(ev.clientX-ox)+'px';ghost.style.top=(ev.clientY-oy)+'px';
+      if(isOrd){const l=$('#ckL');const sib=[...l.children].filter(x=>x!==card);let ref=null;for(const s of sib){const b=s.getBoundingClientRect();if(ev.clientY<b.top+b.height/2){ref=s;break;}}if(ref!==card.nextSibling)l.insertBefore(card,ref);renum();}
+      else{const el=document.elementFromPoint(ev.clientX,ev.clientY);const z=el&&el.closest('.ck-slot,#ckP');if(over&&over!==z)over.classList.remove('ov');over=z;if(z)z.classList.add('ov');}
+      const vh=innerHeight;if(ev.clientY<60)scrollBy(0,-12);else if(ev.clientY>vh-60)scrollBy(0,12);};
+    const up=ev=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up);
+      if(ghost)ghost.remove();card.classList.remove('drag');if(over)over.classList.remove('ov');
+      if(!moved){ // нажатие: выбрать / поменять местами / поставить
+        if(sel&&sel!==card){if(isOrd||sel.closest('#ckL'))swap(sel,card);else{const za=sel.parentNode,zb=card.parentNode;if(za!==zb){zb.classList.contains('ck-slot')?place(sel,zb):place(card,za);}}sel.classList.remove('sel');sel=null;clearMarks();renum();readState();}
+        else if(sel===card){card.classList.remove('sel');sel=null;}else{sel=card;card.classList.add('sel');}return;}
+      if(isOrd){clearMarks();readState();return;}
+      if(over)place(card,over);};
+    addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up);}
+  render();
+  document.addEventListener('click',e=>{if(e.target.closest('#langSw'))setTimeout(render,0);});
+})();
+</script>
+<!--cards-end-->
+</html>
